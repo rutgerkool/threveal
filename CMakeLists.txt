@@ -46,6 +46,24 @@ endif()
 # Find dependencies
 find_package(fmt CONFIG REQUIRED)
 
+# Core library
+add_library(threveal_core
+  src/core/topology.cpp
+)
+
+target_include_directories(threveal_core
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(threveal_core
+  PUBLIC
+    fmt::fmt
+)
+
+target_compile_features(threveal_core PUBLIC cxx_std_23)
+
 # Testing
 if(THREVEAL_ENABLE_TESTING)
   enable_testing()
