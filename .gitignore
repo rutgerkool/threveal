@@ -29,7 +29,7 @@ Testing/
 *.dylib
 
 # Binaries
-threveal
+/threveal
 *.exe
 
 # Package manager
@@ -43,5 +43,5 @@ coverage/
 
 # Debug files
 *.dSYM/
-core
+/core
 vgcore.*
