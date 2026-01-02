@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <expected>
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace threveal::core
@@ -115,6 +116,22 @@ class TopologyMap
     std::vector<CpuId> e_cores_;
     std::vector<CoreType> cpu_to_type_;
 };
+
+/**
+ *  Parses a CPU list string in sysfs format.
+ *
+ *  Sysfs represents CPU lists in a compact format using ranges and
+ *  comma-separated values. For example:
+ *  - "0-5" represents CPUs 0, 1, 2, 3, 4, 5
+ *  - "0-5,12-19" represents CPUs 0-5 and 12-19
+ *  - "0,2,4" represents CPUs 0, 2, 4
+ *
+ *  @param      content  The CPU list string to parse (e.g., "0-5,12-19").
+ *  @return     A vector of CPU IDs on success, or TopologyError::kParseError
+ *              if the format is invalid.
+ */
+[[nodiscard]] auto parseCpuList(std::string_view content)
+    -> std::expected<std::vector<CpuId>, TopologyError>;
 
 }  // namespace threveal::core
 
