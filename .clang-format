@@ -1,0 +1,52 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+Standard: c++23
+
+# Indentation
+IndentWidth: 2
+ContinuationIndentWidth: 4
+AccessModifierOffset: -1
+
+# Braces
+BreakBeforeBraces: Attach
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Line length
+ColumnLimit: 100
+
+# Includes
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Project headers
+  - Regex: '^"threveal/'
+    Priority: 1
+  # System headers
+  - Regex: '^<.*>'
+    Priority: 2
+  # Third-party headers
+  - Regex: '.*'
+    Priority: 3
+
+# Spaces
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: Never
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Other
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+ReflowComments: true
