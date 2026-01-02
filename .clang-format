@@ -1,19 +1,23 @@
 ---
 Language: Cpp
 BasedOnStyle: Google
-Standard: c++23
+Standard: Latest
 
 # Indentation
-IndentWidth: 2
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
 ContinuationIndentWidth: 4
-AccessModifierOffset: -1
+AccessModifierOffset: -2
 
-# Braces
-BreakBeforeBraces: Attach
+# Braces - Allman style (on new lines)
+BreakBeforeBraces: Allman
 AllowShortBlocksOnASingleLine: Empty
-AllowShortFunctionsOnASingleLine: Inline
+AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Empty
 
 # Line length
 ColumnLimit: 100
