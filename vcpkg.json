@@ -3,29 +3,7 @@
   "name": "threveal",
   "version": "0.1.0",
   "description": "Hybrid core migration profiler for Intel Alder Lake/Raptor Lake CPUs",
-  "homepage": "https://github.com/yourusername/threveal",
   "license": "MIT",
   "supports": "linux",
-  "dependencies": [
-    {
-      "name": "fmt",
-      "version>=": "10.0.0"
-    },
-    {
-      "name": "cli11",
-      "version>=": "2.4.0"
-    },
-    {
-      "name": "nlohmann-json",
-      "version>=": "3.11.0"
-    },
-    {
-      "name": "catch2",
-      "version>=": "3.5.0"
-    },
-    {
-      "name": "benchmark",
-      "version>=": "1.8.0"
-    }
-  ]
+  "dependencies": ["fmt", "cli11", "nlohmann-json", "catch2", "benchmark"]
 }
