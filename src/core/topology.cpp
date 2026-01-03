@@ -14,6 +14,7 @@
 #include <charconv>
 #include <cstddef>
 #include <expected>
+#include <filesystem>
 #include <fstream>
 #include <span>
 #include <string>
@@ -151,6 +152,7 @@ namespace
 // Sysfs paths for Intel hybrid CPU topology detection
 constexpr std::string_view kPCoreSysfsPath = "/sys/devices/cpu_core/cpus";
 constexpr std::string_view kECoreSysfsPath = "/sys/devices/cpu_atom/cpus";
+constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
 
 /**
  *  Reads the entire contents of a file into a string.
@@ -180,6 +182,99 @@ constexpr std::string_view kECoreSysfsPath = "/sys/devices/cpu_atom/cpus";
     }
 
     return content;
+}
+
+/**
+ *  Loads topology using per-CPU core_type files (Linux 5.18+).
+ *
+ *  Enumerates /sys/devices/system/cpu/cpu* directories and reads each
+ *  CPU's topology/core_type file to classify it as P-core or E-core.
+ *
+ *  @return     A populated TopologyMap on success, or TopologyError
+ *              indicating why detection failed.
+ */
+[[nodiscard]] auto loadFromCoreType() -> std::expected<TopologyMap, TopologyError>
+{
+    namespace fs = std::filesystem;
+
+    std::vector<CpuId> p_cores;
+    std::vector<CpuId> e_cores;
+
+    std::error_code ec;
+    auto dir_iter = fs::directory_iterator(kCpuBasePath, ec);
+    if (ec)
+    {
+        return std::unexpected(TopologyError::kSysfsNotFound);
+    }
+
+    for (const auto& entry : dir_iter)
+    {
+        // Skip non-directories
+        if (!entry.is_directory(ec) || ec)
+        {
+            continue;
+        }
+
+        // Check for cpu[0-9]+ pattern
+        auto filename = entry.path().filename().string();
+        if (filename.size() < 4 || filename.substr(0, 3) != "cpu")
+        {
+            continue;
+        }
+
+        // Parse the CPU ID from directory name (e.g., "cpu0" -> 0)
+        auto cpu_id_str = std::string_view(filename).substr(3);
+        auto cpu_id = parseNumber(cpu_id_str);
+        if (!cpu_id)
+        {
+            // Not a numeric CPU directory (e.g., "cpufreq", "cpuidle")
+            continue;
+        }
+
+        // Read this CPU's core_type file
+        auto core_type_path = entry.path() / "topology" / "core_type";
+        auto core_type_content = readFileContents(core_type_path.string());
+        if (!core_type_content)
+        {
+            // core_type not available for this CPU
+            continue;
+        }
+
+        auto core_type = parseCoreType(*core_type_content);
+        if (!core_type)
+        {
+            // Unknown core type string
+            continue;
+        }
+
+        // Classify the CPU
+        if (*core_type == CoreType::kPCore)
+        {
+            p_cores.push_back(*cpu_id);
+        }
+        else if (*core_type == CoreType::kECore)
+        {
+            e_cores.push_back(*cpu_id);
+        }
+    }
+
+    // Validate that we found CPUs
+    if (p_cores.empty() && e_cores.empty())
+    {
+        return std::unexpected(TopologyError::kSysfsNotFound);
+    }
+
+    // Validate hybrid configuration
+    if (p_cores.empty() || e_cores.empty())
+    {
+        return std::unexpected(TopologyError::kNotHybridCpu);
+    }
+
+    // Sort for consistent ordering
+    std::ranges::sort(p_cores);
+    std::ranges::sort(e_cores);
+
+    return TopologyMap{p_cores, e_cores};
 }
 
 }  // namespace
@@ -230,34 +325,35 @@ auto TopologyMap::isHybrid() const noexcept -> bool
 
 auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
 {
-    // Read P-core CPU list from sysfs
+    // Primary method: use cpu_core/cpu_atom sysfs entries (Linux 5.13+)
     auto p_core_content = readFileContents(kPCoreSysfsPath);
-    if (!p_core_content)
+    if (p_core_content)
     {
-        return std::unexpected(TopologyError::kSysfsNotFound);
+        // P-cores sysfs exists, continue with primary method
+        auto p_cores = parseCpuList(*p_core_content);
+        if (!p_cores)
+        {
+            return std::unexpected(p_cores.error());
+        }
+
+        auto e_core_content = readFileContents(kECoreSysfsPath);
+        if (!e_core_content)
+        {
+            // P-cores exist but E-cores don't - not a hybrid CPU
+            return std::unexpected(TopologyError::kNotHybridCpu);
+        }
+
+        auto e_cores = parseCpuList(*e_core_content);
+        if (!e_cores)
+        {
+            return std::unexpected(e_cores.error());
+        }
+
+        return TopologyMap{*p_cores, *e_cores};
     }
 
-    auto p_cores = parseCpuList(*p_core_content);
-    if (!p_cores)
-    {
-        return std::unexpected(p_cores.error());
-    }
-
-    // Read E-core CPU list from sysfs
-    auto e_core_content = readFileContents(kECoreSysfsPath);
-    if (!e_core_content)
-    {
-        // P-cores exist but E-cores don't - not a hybrid CPU
-        return std::unexpected(TopologyError::kNotHybridCpu);
-    }
-
-    auto e_cores = parseCpuList(*e_core_content);
-    if (!e_cores)
-    {
-        return std::unexpected(e_cores.error());
-    }
-
-    return TopologyMap{*p_cores, *e_cores};
+    // Fallback: use per-CPU core_type files (Linux 5.18+)
+    return loadFromCoreType();
 }
 
 void TopologyMap::buildLookupTable()
@@ -335,6 +431,25 @@ auto parseCpuList(std::string_view content) -> std::expected<std::vector<CpuId>,
     }
 
     return result;
+}
+
+auto parseCoreType(std::string_view content) -> std::expected<CoreType, TopologyError>
+{
+    auto trimmed = trim(content);
+
+    // Intel hybrid CPUs report "intel_core" or "intel_atom" (older kernels)
+    // or just "Core" or "Atom" (newer kernels)
+    if (trimmed == "Core" || trimmed == "intel_core")
+    {
+        return CoreType::kPCore;
+    }
+
+    if (trimmed == "Atom" || trimmed == "intel_atom")
+    {
+        return CoreType::kECore;
+    }
+
+    return std::unexpected(TopologyError::kParseError);
 }
 
 }  // namespace threveal::core

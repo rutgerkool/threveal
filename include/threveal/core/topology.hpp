@@ -133,6 +133,20 @@ class TopologyMap
 [[nodiscard]] auto parseCpuList(std::string_view content)
     -> std::expected<std::vector<CpuId>, TopologyError>;
 
+/**
+ *  Parses a core_type sysfs string to determine the core type.
+ *
+ *  The core_type file (Linux 5.18+) contains strings like "Core" or "Atom"
+ *  to indicate P-cores and E-cores respectively. Older kernel versions
+ *  may report "intel_core" or "intel_atom".
+ *
+ *  @param      content  The core_type string to parse (e.g., "Core", "Atom").
+ *  @return     The CoreType on success, or TopologyError::kParseError
+ *              if the format is not recognized.
+ */
+[[nodiscard]] auto parseCoreType(std::string_view content)
+    -> std::expected<CoreType, TopologyError>;
+
 }  // namespace threveal::core
 
 #endif  // THREVEAL_CORE_TOPOLOGY_HPP_

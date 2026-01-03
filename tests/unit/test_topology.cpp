@@ -364,3 +364,110 @@ TEST_CASE("TopologyMap handles realistic i7-13700H topology", "[topology][Topolo
         REQUIRE(*result == CoreType::kECore);
     }
 }
+
+TEST_CASE("parseCoreType parses P-core identifiers", "[topology][parseCoreType]")
+{
+    SECTION("modern kernel format")
+    {
+        auto result = parseCoreType("Core");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kPCore);
+    }
+
+    SECTION("older kernel format")
+    {
+        auto result = parseCoreType("intel_core");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kPCore);
+    }
+
+    SECTION("with trailing newline")
+    {
+        auto result = parseCoreType("Core\n");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kPCore);
+    }
+
+    SECTION("with surrounding whitespace")
+    {
+        auto result = parseCoreType("  Core  ");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kPCore);
+    }
+}
+
+TEST_CASE("parseCoreType parses E-core identifiers", "[topology][parseCoreType]")
+{
+    SECTION("modern kernel format")
+    {
+        auto result = parseCoreType("Atom");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kECore);
+    }
+
+    SECTION("older kernel format")
+    {
+        auto result = parseCoreType("intel_atom");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kECore);
+    }
+
+    SECTION("with trailing newline")
+    {
+        auto result = parseCoreType("Atom\n");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kECore);
+    }
+
+    SECTION("with surrounding whitespace")
+    {
+        auto result = parseCoreType("  Atom  ");
+        REQUIRE(result.has_value());
+        REQUIRE(*result == CoreType::kECore);
+    }
+}
+
+TEST_CASE("parseCoreType rejects invalid input", "[topology][parseCoreType]")
+{
+    SECTION("empty string")
+    {
+        auto result = parseCoreType("");
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error() == TopologyError::kParseError);
+    }
+
+    SECTION("whitespace only")
+    {
+        auto result = parseCoreType("   ");
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error() == TopologyError::kParseError);
+    }
+
+    SECTION("unknown core type")
+    {
+        auto result = parseCoreType("Unknown");
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error() == TopologyError::kParseError);
+    }
+
+    SECTION("case sensitive - lowercase")
+    {
+        auto result = parseCoreType("core");
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error() == TopologyError::kParseError);
+    }
+
+    SECTION("case sensitive - uppercase")
+    {
+        auto result = parseCoreType("ATOM");
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error() == TopologyError::kParseError);
+    }
+
+    SECTION("numeric input")
+    {
+        auto result = parseCoreType("0");
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error() == TopologyError::kParseError);
+    }
+}
