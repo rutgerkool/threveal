@@ -60,6 +60,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 # Core library
 add_library(threveal_core STATIC
   src/core/topology.cpp
+  src/core/events.cpp
 )
 target_link_libraries(threveal_core PUBLIC fmt::fmt)
 

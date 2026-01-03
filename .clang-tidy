@@ -15,7 +15,8 @@ Checks: >
   -cppcoreguidelines-avoid-magic-numbers,
   -readability-magic-numbers,
   -google-readability-todo,
-  -misc-const-correctness
+  -misc-const-correctness,
+  -misc-non-private-member-variables-in-classes
 
 WarningsAsErrors: ''
 
@@ -48,14 +49,20 @@ CheckOptions:
   - key: readability-identifier-naming.LocalVariableCase
     value: lower_case
 
-  # Members: snake_case with trailing underscore
-  - key: readability-identifier-naming.MemberCase
+  # Public members: snake_case (no suffix, for aggregate types)
+  - key: readability-identifier-naming.PublicMemberCase
     value: lower_case
-  - key: readability-identifier-naming.MemberSuffix
-    value: _
+
+  # Private members: snake_case with trailing underscore
   - key: readability-identifier-naming.PrivateMemberCase
     value: lower_case
   - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _
+
+  # Protected members: snake_case with trailing underscore
+  - key: readability-identifier-naming.ProtectedMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.ProtectedMemberSuffix
     value: _
 
   # Constants and Enums: kPascalCase
