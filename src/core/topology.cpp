@@ -323,6 +323,30 @@ auto TopologyMap::isHybrid() const noexcept -> bool
     return !p_cores_.empty() && !e_cores_.empty();
 }
 
+auto TopologyMap::isSmtSibling(CpuId cpu_a, CpuId cpu_b) const noexcept -> bool
+{
+    // Can't be siblings if SMT data unavailable
+    if (physical_core_id_.empty())
+    {
+        return false;
+    }
+
+    // Bounds check
+    if (cpu_a >= physical_core_id_.size() || cpu_b >= physical_core_id_.size())
+    {
+        return false;
+    }
+
+    // Check for invalid/unknown physical core IDs
+    if (physical_core_id_[cpu_a] == kInvalidCpuId || physical_core_id_[cpu_b] == kInvalidCpuId)
+    {
+        return false;
+    }
+
+    // SMT siblings share the same physical core but are different logical CPUs
+    return cpu_a != cpu_b && physical_core_id_[cpu_a] == physical_core_id_[cpu_b];
+}
+
 auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
 {
     // Primary method: use cpu_core/cpu_atom sysfs entries (Linux 5.13+)
@@ -349,11 +373,18 @@ auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
             return std::unexpected(e_cores.error());
         }
 
-        return TopologyMap{*p_cores, *e_cores};
+        TopologyMap map{*p_cores, *e_cores};
+        map.loadSmtData();
+        return map;
     }
 
     // Fallback: use per-CPU core_type files (Linux 5.18+)
-    return loadFromCoreType();
+    auto fallback_result = loadFromCoreType();
+    if (fallback_result)
+    {
+        fallback_result->loadSmtData();
+    }
+    return fallback_result;
 }
 
 void TopologyMap::buildLookupTable()
@@ -384,6 +415,44 @@ void TopologyMap::buildLookupTable()
     for (CpuId cpu : e_cores_)
     {
         cpu_to_type_[cpu] = CoreType::kECore;
+    }
+}
+
+void TopologyMap::loadSmtData()
+{
+    namespace fs = std::filesystem;
+
+    // Find max CPU ID to size the vector
+    CpuId max_cpu = 0;
+    for (CpuId cpu : p_cores_)
+    {
+        max_cpu = std::max(max_cpu, cpu);
+    }
+    for (CpuId cpu : e_cores_)
+    {
+        max_cpu = std::max(max_cpu, cpu);
+    }
+
+    // Initialize with invalid values
+    physical_core_id_.resize(max_cpu + 1, kInvalidCpuId);
+
+    // Read physical core ID for each CPU
+    for (CpuId cpu = 0; cpu <= max_cpu; ++cpu)
+    {
+        auto path = fs::path(kCpuBasePath) / ("cpu" + std::to_string(cpu)) / "topology" / "core_id";
+        auto content = readFileContents(path.string());
+        if (!content)
+        {
+            continue;
+        }
+
+        auto core_id = parseNumber(trim(*content));
+        if (!core_id)
+        {
+            continue;
+        }
+
+        physical_core_id_[cpu] = *core_id;
     }
 }
 

@@ -93,6 +93,19 @@ class TopologyMap
     [[nodiscard]] auto isHybrid() const noexcept -> bool;
 
     /**
+     *  Checks if two CPUs are SMT (hyperthreading) siblings.
+     *
+     *  SMT siblings share the same physical core but have different logical
+     *  CPU IDs. On Intel hybrid CPUs, only P-cores support SMT.
+     *
+     *  @param      cpu_a  First logical CPU identifier.
+     *  @param      cpu_b  Second logical CPU identifier.
+     *  @return     True if both CPUs share the same physical core.
+     *              Returns false if SMT data is unavailable or CPUs are invalid.
+     */
+    [[nodiscard]] auto isSmtSibling(CpuId cpu_a, CpuId cpu_b) const noexcept -> bool;
+
+    /**
      *  Loads CPU topology from sysfs.
      *
      *  Parses /sys/devices/cpu_core/cpus and /sys/devices/cpu_atom/cpus
@@ -112,9 +125,18 @@ class TopologyMap
      */
     void buildLookupTable();
 
+    /**
+     *  Loads SMT sibling data from sysfs.
+     *
+     *  Reads /sys/devices/system/cpu/cpu<N>/topology/core_id for each CPU
+     *  to determine which CPUs share a physical core.
+     */
+    void loadSmtData();
+
     std::vector<CpuId> p_cores_;
     std::vector<CpuId> e_cores_;
     std::vector<CoreType> cpu_to_type_;
+    std::vector<CpuId> physical_core_id_;
 };
 
 /**

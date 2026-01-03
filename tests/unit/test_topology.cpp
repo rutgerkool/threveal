@@ -471,3 +471,32 @@ TEST_CASE("parseCoreType rejects invalid input", "[topology][parseCoreType]")
         REQUIRE(result.error() == TopologyError::kParseError);
     }
 }
+
+TEST_CASE("TopologyMap isSmtSibling without SMT data", "[topology][TopologyMap][smt]")
+{
+    // When constructed directly (not via loadFromSysfs), SMT data is unavailable
+    std::vector<CpuId> p_cores = {0, 1, 2, 3};
+    std::vector<CpuId> e_cores = {4, 5, 6, 7};
+
+    TopologyMap map(p_cores, e_cores);
+
+    SECTION("returns false when SMT data unavailable")
+    {
+        REQUIRE(map.isSmtSibling(0, 1) == false);
+        REQUIRE(map.isSmtSibling(0, 2) == false);
+        REQUIRE(map.isSmtSibling(4, 5) == false);
+    }
+
+    SECTION("returns false for same CPU")
+    {
+        REQUIRE(map.isSmtSibling(0, 0) == false);
+        REQUIRE(map.isSmtSibling(4, 4) == false);
+    }
+
+    SECTION("returns false for out of range CPUs")
+    {
+        REQUIRE(map.isSmtSibling(0, 99) == false);
+        REQUIRE(map.isSmtSibling(99, 0) == false);
+        REQUIRE(map.isSmtSibling(99, 100) == false);
+    }
+}
