@@ -46,26 +46,29 @@ endif()
 # Find dependencies
 find_package(fmt CONFIG REQUIRED)
 
+# Include directories
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
 # Core library
-add_library(threveal_core
+add_library(threveal_core STATIC
   src/core/topology.cpp
 )
-
-target_include_directories(threveal_core
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-
-target_link_libraries(threveal_core
-  PUBLIC
-    fmt::fmt
-)
-
-target_compile_features(threveal_core PUBLIC cxx_std_23)
+target_link_libraries(threveal_core PUBLIC fmt::fmt)
 
 # Testing
 if(THREVEAL_ENABLE_TESTING)
   enable_testing()
   find_package(Catch2 3 CONFIG REQUIRED)
+
+  add_executable(test_topology
+    tests/unit/test_topology.cpp
+  )
+  target_link_libraries(test_topology PRIVATE
+    threveal_core
+    Catch2::Catch2WithMain
+  )
+
+  # Use manual test registration to avoid running executable at configure time
+  # (catch_discover_tests conflicts with AddressSanitizer)
+  add_test(NAME topology_tests COMMAND test_topology)
 endif()
