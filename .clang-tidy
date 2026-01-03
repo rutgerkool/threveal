@@ -14,7 +14,8 @@ Checks: >
   -readability-identifier-length,
   -cppcoreguidelines-avoid-magic-numbers,
   -readability-magic-numbers,
-  -google-readability-todo
+  -google-readability-todo,
+  -misc-const-correctness
 
 WarningsAsErrors: ''
 
