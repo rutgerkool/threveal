@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.25)
 
+# Auto-detect vcpkg if VCPKG_ROOT is not set
+if(NOT DEFINED ENV{VCPKG_ROOT})
+  if(EXISTS "$ENV{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake")
+    set(ENV{VCPKG_ROOT} "$ENV{HOME}/vcpkg")
+    message(STATUS "Auto-detected VCPKG_ROOT: $ENV{HOME}/vcpkg")
+  endif()
+endif()
+
 project(
   threveal
   VERSION 0.1.0
