@@ -32,10 +32,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [gcc-13, clang-17]
+        compiler: [gcc-13, clang-19]
         build_type: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install LLVM 19
+        if: matrix.compiler == 'clang-19'
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
 
       - name: Install dependencies
         run: |
@@ -43,8 +50,6 @@ jobs:
           sudo apt-get install -y ninja-build
           if [ "${{ matrix.compiler }}" = "gcc-13" ]; then
             sudo apt-get install -y g++-13
-          else
-            sudo apt-get install -y clang-17
           fi
 
       - name: Setup vcpkg
@@ -57,7 +62,7 @@ jobs:
           if [ "${{ matrix.compiler }}" = "gcc-13" ]; then
             export CC=gcc-13 CXX=g++-13
           else
-            export CC=clang-17 CXX=clang++-17
+            export CC=clang-19 CXX=clang++-19
           fi
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -84,7 +89,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [gcc-13, clang-17]
+        compiler: [gcc-13, clang-19]
     steps:
       - uses: actions/checkout@v4
 
@@ -111,6 +116,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 19
+          sudo apt-get install -y clang-tidy-19
 
       - name: Install dependencies
         run: sudo apt-get install -y ninja-build
