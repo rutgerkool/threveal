@@ -326,6 +326,12 @@ auto parseCpuList(std::string_view content) -> std::expected<std::vector<CpuId>,
 
         // Move past the comma to start of next element
         pos = comma_pos + 1;
+
+        // Check for trailing comma (nothing after the comma)
+        if (pos >= content.size())
+        {
+            return std::unexpected(TopologyError::kParseError);
+        }
     }
 
     return result;
