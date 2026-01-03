@@ -7,6 +7,9 @@ name: CI
   pull_request:
     branches: [main]
 
+env:
+  VCPKG_COMMIT: "55f734a3a994f325f54f00468fa0b87f03566b17"
+
 jobs:
   format-check:
     name: Format Check
@@ -14,10 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install clang-format-19
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          sudo apt-get install -y clang-format-19
+
       - name: Check formatting
         run: |
           find src include tests -name '*.cpp' -o -name '*.hpp' | \
-            xargs clang-format --dry-run --Werror
+            xargs clang-format-19 --dry-run --Werror
 
   build:
     name: Build (${{ matrix.compiler }}, ${{ matrix.build_type }})
@@ -41,9 +51,11 @@ jobs:
           fi
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: "55f734a3a994f325f54f00468fa0b87f03566b17"
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          git checkout $VCPKG_COMMIT
+          ./bootstrap-vcpkg.sh
 
       - name: Configure
         run: |
@@ -52,10 +64,9 @@ jobs:
           else
             export CC=clang-17 CXX=clang++-17
           fi
-          TOOLCHAIN=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN \
+            -DCMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake \
             -DTHREVEAL_ENABLE_TESTING=ON \
             -DTHREVEAL_ENABLE_SANITIZERS=OFF
 
@@ -110,17 +121,18 @@ jobs:
         run: sudo apt-get install -y ninja-build
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: "55f734a3a994f325f54f00468fa0b87f03566b17"
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          git checkout $VCPKG_COMMIT
+          ./bootstrap-vcpkg.sh
 
       - name: Configure
         run: |
-          TOOLCHAIN=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_COMPILER=clang++-19 \
-            -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN \
+            -DCMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Build
