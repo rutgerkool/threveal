@@ -14,7 +14,9 @@
 #include <charconv>
 #include <cstddef>
 #include <expected>
+#include <fstream>
 #include <span>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <vector>
@@ -146,6 +148,40 @@ namespace
     return {};
 }
 
+// Sysfs paths for Intel hybrid CPU topology detection
+constexpr std::string_view kPCoreSysfsPath = "/sys/devices/cpu_core/cpus";
+constexpr std::string_view kECoreSysfsPath = "/sys/devices/cpu_atom/cpus";
+
+/**
+ *  Reads the entire contents of a file into a string.
+ *
+ *  @param      path  The filesystem path to read.
+ *  @return     The file contents on success, or TopologyError indicating
+ *              why the read failed.
+ */
+[[nodiscard]] auto readFileContents(std::string_view path)
+    -> std::expected<std::string, TopologyError>
+{
+    std::ifstream file{std::string(path)};
+
+    if (!file.is_open())
+    {
+        // Could be permission denied or file not found
+        // We treat both as "not found" for simplicity since sysfs
+        // entries either exist and are readable or don't exist
+        return std::unexpected(TopologyError::kSysfsNotFound);
+    }
+
+    std::string content;
+    if (!std::getline(file, content))
+    {
+        // File exists but is empty or unreadable
+        return std::unexpected(TopologyError::kParseError);
+    }
+
+    return content;
+}
+
 }  // namespace
 
 TopologyMap::TopologyMap(std::span<const CpuId> p_cores, std::span<const CpuId> e_cores)
@@ -194,8 +230,34 @@ auto TopologyMap::isHybrid() const noexcept -> bool
 
 auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
 {
-    // TODO: Implement sysfs file reading
-    return std::unexpected(TopologyError::kSysfsNotFound);
+    // Read P-core CPU list from sysfs
+    auto p_core_content = readFileContents(kPCoreSysfsPath);
+    if (!p_core_content)
+    {
+        return std::unexpected(TopologyError::kSysfsNotFound);
+    }
+
+    auto p_cores = parseCpuList(*p_core_content);
+    if (!p_cores)
+    {
+        return std::unexpected(p_cores.error());
+    }
+
+    // Read E-core CPU list from sysfs
+    auto e_core_content = readFileContents(kECoreSysfsPath);
+    if (!e_core_content)
+    {
+        // P-cores exist but E-cores don't - not a hybrid CPU
+        return std::unexpected(TopologyError::kNotHybridCpu);
+    }
+
+    auto e_cores = parseCpuList(*e_core_content);
+    if (!e_cores)
+    {
+        return std::unexpected(e_cores.error());
+    }
+
+    return TopologyMap{*p_cores, *e_cores};
 }
 
 void TopologyMap::buildLookupTable()
