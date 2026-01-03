@@ -10,9 +10,11 @@
 #include "threveal/core/errors.hpp"
 #include "threveal/core/types.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cstddef>
 #include <expected>
+#include <span>
 #include <string_view>
 #include <system_error>
 #include <vector>
@@ -145,6 +147,87 @@ namespace
 }
 
 }  // namespace
+
+TopologyMap::TopologyMap(std::span<const CpuId> p_cores, std::span<const CpuId> e_cores)
+    : p_cores_(p_cores.begin(), p_cores.end()), e_cores_(e_cores.begin(), e_cores.end())
+{
+    buildLookupTable();
+}
+
+auto TopologyMap::getCoreType(CpuId cpu_id) const -> std::expected<CoreType, TopologyError>
+{
+    if (cpu_id >= cpu_to_type_.size())
+    {
+        return std::unexpected(TopologyError::kInvalidCpuId);
+    }
+
+    auto type = cpu_to_type_[cpu_id];
+
+    // A CPU ID within bounds but marked Unknown means it wasn't in either list
+    if (type == CoreType::kUnknown)
+    {
+        return std::unexpected(TopologyError::kInvalidCpuId);
+    }
+
+    return type;
+}
+
+auto TopologyMap::getPCores() const noexcept -> std::span<const CpuId>
+{
+    return p_cores_;
+}
+
+auto TopologyMap::getECores() const noexcept -> std::span<const CpuId>
+{
+    return e_cores_;
+}
+
+auto TopologyMap::totalCpuCount() const noexcept -> std::size_t
+{
+    return p_cores_.size() + e_cores_.size();
+}
+
+auto TopologyMap::isHybrid() const noexcept -> bool
+{
+    return !p_cores_.empty() && !e_cores_.empty();
+}
+
+auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
+{
+    // TODO: Implement sysfs file reading
+    return std::unexpected(TopologyError::kSysfsNotFound);
+}
+
+void TopologyMap::buildLookupTable()
+{
+    // Find the maximum CPU ID to size the lookup table
+    CpuId max_cpu = 0;
+
+    for (CpuId cpu : p_cores_)
+    {
+        max_cpu = std::max(max_cpu, cpu);
+    }
+    for (CpuId cpu : e_cores_)
+    {
+        max_cpu = std::max(max_cpu, cpu);
+    }
+
+    // Resize lookup table to accommodate all CPU IDs (0 to max_cpu inclusive)
+    // Unassigned entries default to kUnknown
+    cpu_to_type_.resize(max_cpu + 1, CoreType::kUnknown);
+
+    // Populate P-core entries
+    for (CpuId cpu : p_cores_)
+    {
+        cpu_to_type_[cpu] = CoreType::kPCore;
+    }
+
+    // Populate E-core entries
+    for (CpuId cpu : e_cores_)
+    {
+        cpu_to_type_[cpu] = CoreType::kECore;
+    }
+}
 
 auto parseCpuList(std::string_view content) -> std::expected<std::vector<CpuId>, TopologyError>
 {
