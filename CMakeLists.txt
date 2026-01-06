@@ -77,7 +77,21 @@ if(THREVEAL_ENABLE_TESTING)
     Catch2::Catch2WithMain
   )
 
-  # Use manual test registration to avoid running executable at configure time
-  # (catch_discover_tests conflicts with AddressSanitizer)
+  add_executable(test_events
+    tests/unit/test_events.cpp
+  )
+  target_link_libraries(test_events PRIVATE
+    threveal_core
+    Catch2::Catch2WithMain
+  )
+
   add_test(NAME topology_tests COMMAND test_topology)
+  add_test(NAME events_tests COMMAND test_events)
+
+  # Configure AddressSanitizer to work correctly with ctest
+  if(THREVEAL_ENABLE_SANITIZERS)
+    set_tests_properties(topology_tests events_tests PROPERTIES
+      ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0"
+    )
+  endif()
 endif()
