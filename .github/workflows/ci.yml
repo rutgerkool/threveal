@@ -80,6 +80,7 @@ jobs:
           path: |
             build/libthreveal_core.a
             build/test_topology
+            build/test_events
           retention-days: 7
 
   test:
@@ -99,11 +100,13 @@ jobs:
           name: threveal-${{ matrix.compiler }}-Debug
           path: build
 
-      - name: Make test executable
-        run: chmod +x build/test_topology
+      - name: Make test executables
+        run: chmod +x build/test_topology build/test_events
 
       - name: Run unit tests
-        run: ./build/test_topology
+        run: |
+          ./build/test_topology
+          ./build/test_events
 
   static-analysis:
     name: Static Analysis
