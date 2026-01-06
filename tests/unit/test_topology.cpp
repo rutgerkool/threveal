@@ -12,7 +12,12 @@
 #include <catch2/catch_test_macros.hpp>
 #include <vector>
 
-using namespace threveal::core;
+using threveal::core::CoreType;
+using threveal::core::CpuId;
+using threveal::core::parseCoreType;
+using threveal::core::parseCpuList;
+using threveal::core::TopologyError;
+using threveal::core::TopologyMap;
 
 TEST_CASE("parseCpuList parses single numbers", "[topology][parseCpuList]")
 {
