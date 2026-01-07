@@ -81,6 +81,7 @@ jobs:
             build/libthreveal_core.a
             build/test_topology
             build/test_events
+            build/test_event_store
           retention-days: 7
 
   test:
@@ -101,12 +102,13 @@ jobs:
           path: build
 
       - name: Make test executables
-        run: chmod +x build/test_topology build/test_events
+        run: chmod +x build/test_topology build/test_events build/test_event_store
 
       - name: Run unit tests
         run: |
           ./build/test_topology
           ./build/test_events
+          ./build/test_event_store
 
   static-analysis:
     name: Static Analysis
