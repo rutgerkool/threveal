@@ -86,12 +86,21 @@ if(THREVEAL_ENABLE_TESTING)
     Catch2::Catch2WithMain
   )
 
+  add_executable(test_event_store
+    tests/unit/test_event_store.cpp
+  )
+  target_link_libraries(test_event_store PRIVATE
+    threveal_core
+    Catch2::Catch2WithMain
+  )
+
   add_test(NAME topology_tests COMMAND test_topology)
   add_test(NAME events_tests COMMAND test_events)
+  add_test(NAME event_store_tests COMMAND test_event_store)
 
   # Configure AddressSanitizer to work correctly with ctest
   if(THREVEAL_ENABLE_SANITIZERS)
-    set_tests_properties(topology_tests events_tests PROPERTIES
+    set_tests_properties(topology_tests events_tests event_store_tests PROPERTIES
       ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0"
     )
   endif()
