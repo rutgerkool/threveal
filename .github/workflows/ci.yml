@@ -103,7 +103,11 @@ jobs:
           path: build
 
       - name: Make test executables
-        run: chmod +x build/test_topology build/test_events build/test_event_store build/test_errors
+        run: |
+          chmod +x build/test_topology
+          chmod +x build/test_events
+          chmod +x build/test_event_store
+          chmod +x build/test_errors
 
       - name: Run unit tests
         run: |
