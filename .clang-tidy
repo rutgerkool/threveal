@@ -16,7 +16,10 @@ Checks: >
   -readability-magic-numbers,
   -google-readability-todo,
   -misc-const-correctness,
-  -misc-non-private-member-variables-in-classes
+  -misc-non-private-member-variables-in-classes,
+  -cppcoreguidelines-pro-type-vararg,
+  -google-runtime-int,
+  -bugprone-easily-swappable-parameters
 
 WarningsAsErrors: ''
 
