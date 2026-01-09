@@ -83,6 +83,7 @@ jobs:
             build/test_events
             build/test_event_store
             build/test_errors
+            build/test_pmu_counter
           retention-days: 7
 
   test:
@@ -108,6 +109,11 @@ jobs:
           chmod +x build/test_events
           chmod +x build/test_event_store
           chmod +x build/test_errors
+          chmod +x build/test_pmu_counter
+
+      - name: Enable PMU access
+        run: |
+          sudo sysctl kernel.perf_event_paranoid=1
 
       - name: Run unit tests
         run: |
@@ -115,6 +121,7 @@ jobs:
           ./build/test_events
           ./build/test_event_store
           ./build/test_errors
+          ./build/test_pmu_counter
 
   static-analysis:
     name: Static Analysis
