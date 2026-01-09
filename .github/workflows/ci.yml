@@ -111,10 +111,6 @@ jobs:
           chmod +x build/test_errors
           chmod +x build/test_pmu_counter
 
-      - name: Enable PMU access
-        run: |
-          sudo sysctl kernel.perf_event_paranoid=1
-
       - name: Run unit tests
         run: |
           ./build/test_topology
