@@ -3,4 +3,5 @@ InheritParentConfig: true
 Checks: >
   -readability-function-cognitive-complexity,
   -bugprone-unchecked-optional-access,
-  -bugprone-use-after-move
+  -bugprone-use-after-move,
+  -clang-analyzer-optin.core.EnumCastOutOfRange
