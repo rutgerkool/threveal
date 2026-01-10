@@ -84,6 +84,7 @@ jobs:
             build/test_event_store
             build/test_errors
             build/test_pmu_counter
+            build/test_pmu_group
           retention-days: 7
 
   test:
@@ -110,6 +111,7 @@ jobs:
           chmod +x build/test_event_store
           chmod +x build/test_errors
           chmod +x build/test_pmu_counter
+          chmod +x build/test_pmu_group
 
       - name: Run unit tests
         run: |
@@ -118,6 +120,7 @@ jobs:
           ./build/test_event_store
           ./build/test_errors
           ./build/test_pmu_counter
+          ./build/test_pmu_group
 
   static-analysis:
     name: Static Analysis
