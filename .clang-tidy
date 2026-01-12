@@ -19,7 +19,9 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -cppcoreguidelines-pro-type-vararg,
   -google-runtime-int,
-  -bugprone-easily-swappable-parameters
+  -bugprone-easily-swappable-parameters,
+  -modernize-deprecated-headers,
+  -misc-include-cleaner
 
 WarningsAsErrors: ''
 
