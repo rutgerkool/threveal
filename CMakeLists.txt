@@ -28,6 +28,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Export compile commands for clang-tidy and IDEs
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Add custom CMake modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+# eBPF support (requires system libbpf-dev and bpftool)
+option(THREVEAL_ENABLE_BPF "Enable eBPF-based migration tracking" ON)
+
+if(THREVEAL_ENABLE_BPF)
+  find_package(LibBpf REQUIRED)
+  include(BpfHelpers)
+  message(STATUS "eBPF support enabled")
+  message(STATUS "  LibBpf include: ${LIBBPF_INCLUDE_DIRS}")
+  message(STATUS "  LibBpf library: ${LIBBPF_LIBRARIES}")
+endif()
+
 # Project options
 option(THREVEAL_ENABLE_TESTING "Enable unit tests" ON)
 option(THREVEAL_ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
