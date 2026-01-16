@@ -1,0 +1,4 @@
+# Generated files
+vmlinux.h
+*.bpf.o
+*.skel.h

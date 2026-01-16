@@ -40,6 +40,14 @@ if(THREVEAL_ENABLE_BPF)
   message(STATUS "eBPF support enabled")
   message(STATUS "  LibBpf include: ${LIBBPF_INCLUDE_DIRS}")
   message(STATUS "  LibBpf library: ${LIBBPF_LIBRARIES}")
+
+  # Generate vmlinux.h from kernel BTF at configure time
+  set(VMLINUX_H "${CMAKE_SOURCE_DIR}/bpf/vmlinux.h")
+  if(NOT EXISTS ${VMLINUX_H})
+    bpf_generate_vmlinux_h(${VMLINUX_H})
+  else()
+    message(STATUS "Using existing vmlinux.h at ${VMLINUX_H}")
+  endif()
 endif()
 
 # Project options
