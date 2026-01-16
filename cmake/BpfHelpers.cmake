@@ -95,6 +95,10 @@ function(bpf_compile_program target_name)
         list(APPEND include_flags "-I${dir}")
     endforeach()
 
+    # Ensure output directory exists
+    get_filename_component(BPF_OUTPUT_DIR ${BPF_OUTPUT} DIRECTORY)
+    file(MAKE_DIRECTORY ${BPF_OUTPUT_DIR})
+
     # Compile BPF program
     # Flags explanation:
     #   -g              : Generate debug info (required for CO-RE relocations)

@@ -48,6 +48,26 @@ if(THREVEAL_ENABLE_BPF)
   else()
     message(STATUS "Using existing vmlinux.h at ${VMLINUX_H}")
   endif()
+
+  # BPF include directories
+  set(BPF_INCLUDE_DIRS
+    ${CMAKE_SOURCE_DIR}/bpf
+    ${LIBBPF_INCLUDE_DIRS}
+  )
+
+  # Compile migration_tracker BPF program
+  bpf_compile_program(migration_tracker_bpf
+    SOURCE ${CMAKE_SOURCE_DIR}/bpf/migration_tracker.bpf.c
+    OUTPUT ${CMAKE_BINARY_DIR}/bpf/migration_tracker.bpf.o
+    INCLUDE_DIRS ${BPF_INCLUDE_DIRS}
+  )
+
+  # Generate BPF skeleton header for C++ integration
+  bpf_generate_skeleton(migration_tracker_skel
+    INPUT ${CMAKE_BINARY_DIR}/bpf/migration_tracker.bpf.o
+    OUTPUT ${CMAKE_BINARY_DIR}/bpf/migration_tracker.skel.h
+    DEPENDS migration_tracker_bpf
+  )
 endif()
 
 # Project options
