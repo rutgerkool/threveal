@@ -1,0 +1,6 @@
+---
+InheritParentConfig: true
+Checks: >
+  -clang-analyzer-unix.Malloc,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -readability-identifier-naming
