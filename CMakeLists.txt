@@ -110,6 +110,29 @@ add_library(threveal_core STATIC
 )
 target_link_libraries(threveal_core PUBLIC fmt::fmt)
 
+# eBPF-dependent library (separate to allow building without BPF support)
+if(THREVEAL_ENABLE_BPF)
+  add_library(threveal_bpf STATIC
+    src/collection/ebpf_loader.cpp
+    src/collection/migration_tracker.cpp
+  )
+
+  # Include directories for BPF skeleton and common headers
+  target_include_directories(threveal_bpf PRIVATE
+    ${CMAKE_BINARY_DIR}/bpf
+    ${CMAKE_SOURCE_DIR}/bpf
+  )
+
+  # Link against libbpf and core library
+  target_link_libraries(threveal_bpf
+    PUBLIC threveal_core
+    PRIVATE LibBpf::LibBpf
+  )
+
+  # Ensure BPF skeleton is generated before compiling
+  add_dependencies(threveal_bpf migration_tracker_skel)
+endif()
+
 # Testing
 if(THREVEAL_ENABLE_TESTING)
   enable_testing()
@@ -178,6 +201,27 @@ if(THREVEAL_ENABLE_TESTING)
   add_test(NAME pmu_counter_tests COMMAND test_pmu_counter)
   add_test(NAME pmu_group_tests COMMAND test_pmu_group)
   add_test(NAME pmu_sampler_tests COMMAND test_pmu_sampler)
+
+  if(THREVEAL_ENABLE_BPF)
+    add_executable(test_ebpf_loader
+      tests/unit/test_ebpf_loader.cpp
+    )
+    target_link_libraries(test_ebpf_loader PRIVATE
+      threveal_bpf
+      Catch2::Catch2WithMain
+    )
+
+    add_executable(test_migration_tracker
+      tests/unit/test_migration_tracker.cpp
+    )
+    target_link_libraries(test_migration_tracker PRIVATE
+      threveal_bpf
+      Catch2::Catch2WithMain
+    )
+
+    add_test(NAME ebpf_loader_tests COMMAND test_ebpf_loader)
+    add_test(NAME migration_tracker_tests COMMAND test_migration_tracker)
+  endif()
 
   # Configure AddressSanitizer to work correctly with ctest
   if(THREVEAL_ENABLE_SANITIZERS)
