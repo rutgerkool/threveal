@@ -24,9 +24,6 @@ void EventStore::addMigration(core::MigrationEvent event)
 {
     // Maintain sorted order by timestamp for efficient time-range queries.
     // We use lower_bound to find the first element with timestamp >= event's timestamp.
-    // Inserting at this position keeps the vector sorted in ascending order.
-    // Complexity: O(log n) for search + O(n) for insertion (vector shift).
-    // This trade-off favors read-heavy workloads where queries outnumber insertions.
     auto insertion_point = std::ranges::lower_bound(migrations_, event.timestamp_ns, {},
                                                     [](const core::MigrationEvent& existing)
                                                     {
@@ -40,7 +37,6 @@ void EventStore::addPmuSample(core::PmuSample sample)
 {
     // Maintain sorted order by timestamp for efficient correlation queries.
     // This enables binary search when finding samples before/after migration events.
-    // Complexity: O(log n) for search + O(n) for insertion (vector shift).
     auto insertion_point = std::ranges::lower_bound(pmu_samples_, sample.timestamp_ns, {},
                                                     [](const core::PmuSample& existing)
                                                     {
@@ -83,8 +79,6 @@ auto EventStore::migrationsInRange(std::uint64_t start_ns, std::uint64_t end_ns)
     std::vector<core::MigrationEvent> result;
 
     // Binary search to find the first migration with timestamp >= start_ns.
-    // Since migrations are sorted by timestamp, this gives us O(log n) lookup
-    // to the start of our range, instead of scanning from the beginning.
     auto range_start = std::ranges::lower_bound(migrations_, start_ns, {},
                                                 [](const core::MigrationEvent& event)
                                                 {
@@ -92,12 +86,11 @@ auto EventStore::migrationsInRange(std::uint64_t start_ns, std::uint64_t end_ns)
                                                 });
 
     // Iterate from range_start until we exceed end_ns or reach the end.
-    // We break early once we pass end_ns since the vector is sorted.
     for (auto it = range_start; it != migrations_.end(); ++it)
     {
         if (it->timestamp_ns > end_ns)
         {
-            // Past the end of our range; no need to check remaining elements
+            // Past the end of our range, no need to check remaining elements
             break;
         }
         result.push_back(*it);
@@ -111,7 +104,6 @@ auto EventStore::pmuSamplesForThread(std::uint32_t tid) const -> std::vector<cor
     std::vector<core::PmuSample> result;
 
     // Linear scan to filter by thread ID.
-    // Samples are sorted by timestamp, not by tid, so we must scan all.
     for (const auto& sample : pmu_samples_)
     {
         if (sample.tid == tid)
@@ -132,7 +124,6 @@ auto EventStore::pmuBeforeMigration(const core::MigrationEvent& migration) const
     }
 
     // Use upper_bound to find the first sample with timestamp > migration.timestamp_ns.
-    // All samples before this iterator have timestamp <= migration.timestamp_ns.
     auto upper = std::ranges::upper_bound(pmu_samples_, migration.timestamp_ns, {},
                                           [](const core::PmuSample& sample)
                                           {
@@ -140,9 +131,6 @@ auto EventStore::pmuBeforeMigration(const core::MigrationEvent& migration) const
                                           });
 
     // Search backwards from upper to find a sample with matching tid.
-    // We want the closest sample (largest timestamp) that is <= migration time.
-    // Since samples are sorted by timestamp, the first match we find going
-    // backwards will be the closest one.
     for (auto it = std::make_reverse_iterator(upper); it != pmu_samples_.rend(); ++it)
     {
         if (it->tid == migration.tid)
@@ -163,7 +151,6 @@ auto EventStore::pmuAfterMigration(const core::MigrationEvent& migration) const
     }
 
     // Use lower_bound to find the first sample with timestamp >= migration.timestamp_ns.
-    // This is our starting point for searching forward.
     auto lower = std::ranges::lower_bound(pmu_samples_, migration.timestamp_ns, {},
                                           [](const core::PmuSample& sample)
                                           {
@@ -171,8 +158,6 @@ auto EventStore::pmuAfterMigration(const core::MigrationEvent& migration) const
                                           });
 
     // Search forward from lower to find a sample with matching tid.
-    // Since samples are sorted by timestamp, the first match we find
-    // will be the closest one (smallest timestamp >= migration time).
     for (auto it = lower; it != pmu_samples_.end(); ++it)
     {
         if (it->tid == migration.tid)
