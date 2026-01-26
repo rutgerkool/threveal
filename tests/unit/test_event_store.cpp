@@ -105,6 +105,26 @@ TEST_CASE("EventStore stores PMU samples", "[analysis][EventStore]")
     REQUIRE(store.allPmuSamples()[1].timestamp_ns == 2000);
 }
 
+TEST_CASE("EventStore maintains PMU samples sorted by timestamp", "[analysis][EventStore]")
+{
+    EventStore store;
+
+    // Insert samples out of chronological order to verify sorting
+    store.addPmuSample(makePmuSample(3000, 42, 0));
+    store.addPmuSample(makePmuSample(1000, 42, 0));
+    store.addPmuSample(makePmuSample(4000, 42, 0));
+    store.addPmuSample(makePmuSample(2000, 42, 0));
+
+    REQUIRE(store.pmuSampleCount() == 4);
+
+    // Verify they are stored in ascending timestamp order
+    auto all = store.allPmuSamples();
+    REQUIRE(all[0].timestamp_ns == 1000);
+    REQUIRE(all[1].timestamp_ns == 2000);
+    REQUIRE(all[2].timestamp_ns == 3000);
+    REQUIRE(all[3].timestamp_ns == 4000);
+}
+
 TEST_CASE("EventStore filters migrations by thread", "[analysis][EventStore]")
 {
     EventStore store;
@@ -294,6 +314,85 @@ TEST_CASE("EventStore finds PMU sample after migration", "[analysis][EventStore]
         auto result = store.pmuAfterMigration(exact_migration);
         REQUIRE(result.has_value());
         REQUIRE(result->timestamp_ns == 3000);
+    }
+}
+
+TEST_CASE("EventStore PMU correlation with out-of-order insertion", "[analysis][EventStore]")
+{
+    EventStore store;
+
+    // Insert samples out of order to verify binary search works correctly
+    store.addPmuSample(makePmuSample(4000, 42, 1));
+    store.addPmuSample(makePmuSample(1000, 42, 0));
+    store.addPmuSample(makePmuSample(3000, 42, 0));
+    store.addPmuSample(makePmuSample(6000, 42, 1));
+
+    auto migration = makeMigration(3500, 42, 0, 1);
+
+    SECTION("finds closest sample before regardless of insertion order")
+    {
+        auto result = store.pmuBeforeMigration(migration);
+        REQUIRE(result.has_value());
+        REQUIRE(result->timestamp_ns == 3000);
+    }
+
+    SECTION("finds closest sample after regardless of insertion order")
+    {
+        auto result = store.pmuAfterMigration(migration);
+        REQUIRE(result.has_value());
+        REQUIRE(result->timestamp_ns == 4000);
+    }
+}
+
+TEST_CASE("EventStore PMU correlation with multiple threads", "[analysis][EventStore]")
+{
+    EventStore store;
+
+    // Interleaved samples from different threads
+    store.addPmuSample(makePmuSample(1000, 42, 0));
+    store.addPmuSample(makePmuSample(1500, 43, 0));
+    store.addPmuSample(makePmuSample(2000, 42, 0));
+    store.addPmuSample(makePmuSample(2500, 43, 0));
+    store.addPmuSample(makePmuSample(3000, 42, 1));
+    store.addPmuSample(makePmuSample(3500, 43, 1));
+
+    SECTION("pmuBeforeMigration finds correct thread's sample")
+    {
+        // Migration at 2800 for thread 42 - should find sample at 2000, not 2500 (thread 43)
+        auto migration = makeMigration(2800, 42, 0, 1);
+        auto result = store.pmuBeforeMigration(migration);
+        REQUIRE(result.has_value());
+        REQUIRE(result->timestamp_ns == 2000);
+        REQUIRE(result->tid == 42);
+    }
+
+    SECTION("pmuAfterMigration finds correct thread's sample")
+    {
+        // Migration at 2200 for thread 42 - should find sample at 3000, not 2500 (thread 43)
+        auto migration = makeMigration(2200, 42, 0, 1);
+        auto result = store.pmuAfterMigration(migration);
+        REQUIRE(result.has_value());
+        REQUIRE(result->timestamp_ns == 3000);
+        REQUIRE(result->tid == 42);
+    }
+}
+
+TEST_CASE("EventStore PMU correlation with empty store", "[analysis][EventStore]")
+{
+    EventStore store;
+
+    auto migration = makeMigration(1000, 42, 0, 1);
+
+    SECTION("pmuBeforeMigration returns nullopt on empty store")
+    {
+        auto result = store.pmuBeforeMigration(migration);
+        REQUIRE_FALSE(result.has_value());
+    }
+
+    SECTION("pmuAfterMigration returns nullopt on empty store")
+    {
+        auto result = store.pmuAfterMigration(migration);
+        REQUIRE_FALSE(result.has_value());
     }
 }
 
