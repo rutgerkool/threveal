@@ -2,10 +2,7 @@
  *  @file       pmu_counter.hpp
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
- *  RAII wrapper for Linux perf_event hardware performance counters.
- *
- *  Provides a safe interface for opening, reading, and managing individual
- *  PMU (Performance Monitoring Unit) counters via the perf_event_open() syscall.
+ *  Wrapper for Linux perf_event hardware performance counters.
  */
 
 #ifndef THREVEAL_COLLECTION_PMU_COUNTER_HPP_
@@ -23,9 +20,6 @@ namespace threveal::collection
 
 /**
  *  Hardware performance counter event types.
- *
- *  These correspond to the PMU events needed for migration impact analysis.
- *  Each event maps to a specific perf_event configuration.
  */
 enum class PmuEventType : std::uint8_t
 {
@@ -90,32 +84,13 @@ enum class PmuEventType : std::uint8_t
 }
 
 /**
- *  RAII wrapper for a single hardware performance counter.
- *
- *  PmuCounter encapsulates a perf_event file descriptor, providing safe
- *  resource management and a type-safe interface for reading counter values.
- *
- *  This class is move-only; file descriptors cannot be safely copied.
- *
- *  Example usage:
- *  @code
- *      auto counter = PmuCounter::create(PmuEventType::kCycles, tid);
- *      if (!counter) {
- *          // Handle error
- *      }
- *      counter->enable();
- *      // ... workload runs ...
- *      auto value = counter->read();
- *  @endcode
+ *  Wrapper for a single hardware performance counter.
  */
 class PmuCounter
 {
   public:
     /**
      *  Creates a new PMU counter for the specified event and target.
-     *
-     *  Opens a perf_event file descriptor configured for the given event type.
-     *  The counter is created in a disabled state; call enable() to start counting.
      *
      *  @param      event  The type of hardware event to count.
      *  @param      tid    Thread ID to monitor (0 or -1 for calling thread).
@@ -152,8 +127,6 @@ class PmuCounter
     /**
      *  Reads the current counter value.
      *
-     *  Returns the accumulated count since the counter was enabled or last reset.
-     *
      *  @return     The counter value on success, or PmuError on failure.
      */
     [[nodiscard]] auto read() const -> std::expected<std::uint64_t, core::PmuError>;
@@ -175,8 +148,6 @@ class PmuCounter
     /**
      *  Disables the counter, stopping event accumulation.
      *
-     *  The counter value is preserved and can still be read.
-     *
      *  @return     Success or PmuError on failure.
      */
     [[nodiscard]] auto disable() const -> std::expected<void, core::PmuError>;
@@ -190,8 +161,6 @@ class PmuCounter
 
     /**
      *  Returns the underlying file descriptor.
-     *
-     *  Useful for advanced operations like grouping counters or polling.
      *
      *  @return     The perf_event file descriptor, or -1 if invalid.
      */

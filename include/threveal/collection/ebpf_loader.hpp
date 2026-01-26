@@ -2,10 +2,7 @@
  *  @file       ebpf_loader.hpp
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
- *  RAII wrapper for loading and managing eBPF programs.
- *
- *  Provides a safe C++ interface for the BPF program lifecycle using
- *  the auto-generated skeleton from libbpf.
+ *  Wrapper for loading and managing eBPF programs.
  */
 
 #ifndef THREVEAL_COLLECTION_EBPF_LOADER_HPP_
@@ -86,36 +83,13 @@ enum class EbpfError : std::uint8_t
 }
 
 /**
- *  RAII wrapper for the migration_tracker eBPF program.
- *
- *  EbpfLoader manages the complete lifecycle of the BPF program:
- *  open, load, attach, and destroy. It provides a safe C++ interface
- *  over the auto-generated libbpf skeleton.
- *
- *  This class is move-only; BPF resources cannot be safely copied.
- *
- *  Example usage:
- *  @code
- *      auto loader = EbpfLoader::create();
- *      if (!loader) {
- *          // Handle error
- *      }
- *      auto attach_result = loader->attach();
- *      if (!attach_result) {
- *          // Handle error
- *      }
- *      // BPF program is now active
- *      int ring_buffer_fd = loader->ringBufferFd();
- *  @endcode
+ *  Wrapper for the migration_tracker eBPF program.
  */
 class EbpfLoader
 {
   public:
     /**
      *  Creates and loads a new EbpfLoader instance.
-     *
-     *  Opens the BPF object and loads it into the kernel, but does not
-     *  attach it yet. Call attach() to start tracing.
      *
      *  @return     An EbpfLoader on success, or EbpfError on failure.
      */
@@ -135,24 +109,17 @@ class EbpfLoader
     /**
      *  Attaches the BPF program to its tracepoint.
      *
-     *  After calling this, the program will start capturing migration events.
-     *
      *  @return     Success or EbpfError on failure.
      */
     [[nodiscard]] auto attach() -> std::expected<void, EbpfError>;
 
     /**
      *  Detaches the BPF program from its tracepoint.
-     *
-     *  The program remains loaded but stops capturing events.
      */
     void detach() noexcept;
 
     /**
      *  Sets the target PID filter.
-     *
-     *  When set to a non-zero value, only migrations for the specified
-     *  process (and its threads) will be captured.
      *
      *  @param      pid  Process ID to filter, or 0 to capture all.
      *  @return     Success or EbpfError on failure.

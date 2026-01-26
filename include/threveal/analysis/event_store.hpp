@@ -3,10 +3,6 @@
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
  *  Storage and querying of migration and PMU events.
- *
- *  Provides efficient storage for events captured during profiling and
- *  supports queries for analysis including time-range filtering,
- *  per-thread filtering, and migration-PMU correlation.
  */
 
 #ifndef THREVEAL_ANALYSIS_EVENT_STORE_HPP_
@@ -25,13 +21,6 @@ namespace threveal::analysis
 
 /**
  *  Stores migration events and PMU samples for analysis.
- *
- *  EventStore provides efficient storage and querying of profiling data.
- *  Events are stored in insertion order, which should correspond to
- *  chronological order during normal operation.
- *
- *  Thread-safety: This class is NOT thread-safe. External synchronization
- *  is required if accessed from multiple threads.
  */
 class EventStore
 {
@@ -99,9 +88,6 @@ class EventStore
     /**
      *  Finds the PMU sample closest to and before a migration event.
      *
-     *  Searches for the PMU sample with the same thread ID that has the
-     *  largest timestamp less than or equal to the migration timestamp.
-     *
      *  @param      migration  The migration event to correlate.
      *  @return     The closest PMU sample before the migration, or std::nullopt
      *              if no suitable sample exists.
@@ -111,9 +97,6 @@ class EventStore
 
     /**
      *  Finds the PMU sample closest to and after a migration event.
-     *
-     *  Searches for the PMU sample with the same thread ID that has the
-     *  smallest timestamp greater than or equal to the migration timestamp.
      *
      *  @param      migration  The migration event to correlate.
      *  @return     The closest PMU sample after the migration, or std::nullopt

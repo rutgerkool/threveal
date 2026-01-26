@@ -3,10 +3,6 @@
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
  *  Periodic PMU sampling for migration impact analysis.
- *
- *  Provides a high-frequency sampler that collects hardware performance
- *  counter snapshots at configurable intervals, enabling correlation
- *  between PMU metrics and migration events.
  */
 
 #ifndef THREVEAL_COLLECTION_PMU_SAMPLER_HPP_
@@ -32,62 +28,27 @@ namespace threveal::collection
 
 /**
  *  Periodic sampler for hardware performance counters.
- *
- *  PmuSampler creates a background thread that periodically reads PMU counters
- *  and delivers samples via a callback. This enables correlation between
- *  performance metrics and scheduler migration events.
- *
- *  The sampler uses std::jthread with cooperative cancellation for clean
- *  shutdown. Samples include timestamps synchronized with migration events.
- *
- *  This class is move-only; the sampling thread cannot be safely copied.
- *
- *  Example usage:
- *  @code
- *      auto sampler = PmuSampler::create(tid, [&store](const auto& sample) {
- *          store.addPmuSample(sample);
- *      });
- *      if (!sampler) {
- *          // Handle error
- *      }
- *      sampler->start();
- *      // ... workload runs ...
- *      sampler->stop();  // Or let destructor handle it
- *  @endcode
  */
 class PmuSampler
 {
   public:
     /**
      *  Callback type for delivering PMU samples.
-     *
-     *  The callback is invoked from the sampling thread. Implementations
-     *  must be thread-safe and should complete quickly to avoid affecting
-     *  sample timing accuracy.
      */
     using SampleCallback = std::function<void(const core::PmuSample&)>;
 
     /**
      *  Default sampling interval (1 millisecond).
-     *
-     *  This provides a good balance between timing accuracy and overhead.
-     *  Higher frequencies improve migration-PMU correlation but increase
-     *  CPU usage from the sampler thread.
      */
     static constexpr auto kDefaultInterval = std::chrono::milliseconds(1);
 
     /**
      *  Minimum allowed sampling interval (100 microseconds).
-     *
-     *  Intervals below this may cause excessive overhead and timing jitter.
      */
     static constexpr auto kMinInterval = std::chrono::microseconds(100);
 
     /**
      *  Creates a new PMU sampler for the specified thread.
-     *
-     *  Opens a PMU counter group for the target thread but does not start
-     *  sampling. Call start() to begin collecting samples.
      *
      *  @param      tid       Thread ID to monitor (0 for calling thread).
      *  @param      callback  Function to receive PMU samples.
@@ -100,8 +61,6 @@ class PmuSampler
 
     /**
      *  Destroys the sampler, stopping sampling if running.
-     *
-     *  Blocks until the sampling thread has terminated.
      */
     ~PmuSampler();
 
@@ -115,8 +74,6 @@ class PmuSampler
     /**
      *  Move assignment operator.
      *
-     *  Stops any existing sampling before taking ownership.
-     *
      *  @param      other  Sampler to move from (will be invalidated).
      *  @return     Reference to this sampler.
      */
@@ -129,18 +86,12 @@ class PmuSampler
     /**
      *  Starts periodic sampling.
      *
-     *  Creates a background thread that reads PMU counters at the configured
-     *  interval and invokes the callback with each sample.
-     *
      *  @return     Success, or PmuError if already running or PMU setup fails.
      */
     [[nodiscard]] auto start() -> std::expected<void, core::PmuError>;
 
     /**
      *  Stops periodic sampling.
-     *
-     *  Signals the sampling thread to stop and waits for it to terminate.
-     *  This is a no-op if sampling is not currently running.
      */
     void stop() noexcept;
 
@@ -187,17 +138,12 @@ class PmuSampler
     /**
      *  Sampling thread entry point.
      *
-     *  Runs the sampling loop until stop is requested via the stop token.
-     *
      *  @param      stop_token  Token for cooperative cancellation.
      */
     void samplingLoop(const std::stop_token& stop_token);
 
     /**
      *  Collects a single PMU sample.
-     *
-     *  Reads the PMU counters, creates a PmuSample with the current
-     *  timestamp, and invokes the callback.
      *
      *  @return     True if sample was collected successfully.
      */

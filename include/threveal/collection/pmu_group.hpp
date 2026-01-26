@@ -2,7 +2,7 @@
  *  @file       pmu_group.hpp
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
- *  RAII wrapper for grouped Linux perf_event hardware performance counters.
+ *  Wrapper for grouped Linux perf_event hardware performance counters.
  *
  *  Provides atomic reading of multiple PMU counters using perf_event groups.
  *  This enables accurate correlation between metrics like IPC and cache misses.
@@ -23,9 +23,6 @@ namespace threveal::collection
 
 /**
  *  Results from reading a PMU counter group atomically.
- *
- *  Contains raw counter values and provides computed metrics.
- *  All values represent deltas since the last reset or enable.
  */
 struct PmuGroupReading
 {
@@ -84,27 +81,7 @@ struct PmuGroupReading
 };
 
 /**
- *  RAII wrapper for a group of hardware performance counters.
- *
- *  PmuGroup creates a perf_event group containing all counters needed for
- *  migration impact analysis: cycles, instructions, LLC loads/misses, and
- *  branch misses. Reading the group returns all values atomically.
- *
- *  This class is move-only; file descriptors cannot be safely copied.
- *
- *  Example usage:
- *  @code
- *      auto group = PmuGroup::create(tid);
- *      if (!group) {
- *          // Handle error
- *      }
- *      group->enable();
- *      // ... workload runs ...
- *      auto reading = group->read();
- *      if (reading) {
- *          fmt::print("IPC: {:.2f}\n", reading->ipc());
- *      }
- *  @endcode
+ *  Wrapper for a group of hardware performance counters.
  */
 class PmuGroup
 {
@@ -116,10 +93,6 @@ class PmuGroup
 
     /**
      *  Creates a new PMU counter group for the specified target.
-     *
-     *  Opens perf_event file descriptors for cycles, instructions, LLC loads,
-     *  LLC misses, and branch misses as a group. The group is created disabled;
-     *  call enable() to start counting.
      *
      *  @param      tid  Thread ID to monitor (0 for calling thread).
      *  @param      cpu  CPU to monitor (-1 for any CPU the thread runs on).
@@ -154,10 +127,7 @@ class PmuGroup
 
     /**
      *  Reads all counter values atomically.
-     *
-     *  Returns the accumulated counts since the group was enabled or last reset.
-     *  The read is atomic across all counters in the group.
-     *
+
      *  @return     Counter readings on success, or PmuError on failure.
      */
     [[nodiscard]] auto read() const -> std::expected<PmuGroupReading, core::PmuError>;
@@ -178,8 +148,6 @@ class PmuGroup
 
     /**
      *  Disables all counters, stopping event accumulation.
-     *
-     *  Counter values are preserved and can still be read.
      *
      *  @return     Success or PmuError on failure.
      */
@@ -209,7 +177,6 @@ class PmuGroup
 
     /**
      *  File descriptors for each counter in the group.
-     *  Order: cycles (leader), instructions, llc_loads, llc_load_misses, branch_misses
      */
     std::array<int, kCounterCount> fds_;
 };
