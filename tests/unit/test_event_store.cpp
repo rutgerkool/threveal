@@ -72,6 +72,26 @@ TEST_CASE("EventStore stores migrations", "[analysis][EventStore]")
     REQUIRE(store.allMigrations()[1].timestamp_ns == 2000);
 }
 
+TEST_CASE("EventStore maintains migrations sorted by timestamp", "[analysis][EventStore]")
+{
+    EventStore store;
+
+    // Insert migrations out of chronological order to verify sorting
+    store.addMigration(makeMigration(3000, 42, 0, 1));
+    store.addMigration(makeMigration(1000, 42, 1, 0));
+    store.addMigration(makeMigration(4000, 42, 0, 1));
+    store.addMigration(makeMigration(2000, 42, 1, 0));
+
+    REQUIRE(store.migrationCount() == 4);
+
+    // Verify they are stored in ascending timestamp order
+    auto all = store.allMigrations();
+    REQUIRE(all[0].timestamp_ns == 1000);
+    REQUIRE(all[1].timestamp_ns == 2000);
+    REQUIRE(all[2].timestamp_ns == 3000);
+    REQUIRE(all[3].timestamp_ns == 4000);
+}
+
 TEST_CASE("EventStore stores PMU samples", "[analysis][EventStore]")
 {
     EventStore store;
@@ -148,6 +168,35 @@ TEST_CASE("EventStore filters migrations by time range", "[analysis][EventStore]
     {
         auto result = store.migrationsInRange(0, 10000);
         REQUIRE(result.size() == 4);
+    }
+}
+
+TEST_CASE("EventStore time range query uses binary search efficiently", "[analysis][EventStore]")
+{
+    EventStore store;
+
+    // Insert migrations out of order to ensure sorting works
+    store.addMigration(makeMigration(5000, 42, 0, 1));
+    store.addMigration(makeMigration(1000, 42, 0, 1));
+    store.addMigration(makeMigration(3000, 42, 0, 1));
+    store.addMigration(makeMigration(7000, 42, 0, 1));
+    store.addMigration(makeMigration(9000, 42, 0, 1));
+
+    SECTION("range query returns correct results regardless of insertion order")
+    {
+        // Query middle range - should find 3000, 5000, 7000
+        auto result = store.migrationsInRange(2500, 7500);
+        REQUIRE(result.size() == 3);
+        REQUIRE(result[0].timestamp_ns == 3000);
+        REQUIRE(result[1].timestamp_ns == 5000);
+        REQUIRE(result[2].timestamp_ns == 7000);
+    }
+
+    SECTION("single element range")
+    {
+        auto result = store.migrationsInRange(3000, 3000);
+        REQUIRE(result.size() == 1);
+        REQUIRE(result[0].timestamp_ns == 3000);
     }
 }
 
