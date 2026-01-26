@@ -87,10 +87,6 @@ namespace
 /**
  *  Parses a single element which may be a number or a range.
  *
- *  Handles two formats:
- *  - Single number: "5" -> adds 5 to result
- *  - Range: "0-5" -> adds 0, 1, 2, 3, 4, 5 to result
- *
  *  @param      element  The element string to parse.
  *  @param      result   Vector to append parsed CPU IDs to.
  *  @return     Success or TopologyError::kParseError if format is invalid.
@@ -169,8 +165,6 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
     if (!file.is_open())
     {
         // Could be permission denied or file not found
-        // We treat both as "not found" for simplicity since sysfs
-        // entries either exist and are readable or don't exist
         return std::unexpected(TopologyError::kSysfsNotFound);
     }
 
@@ -186,9 +180,6 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
 
 /**
  *  Loads topology using per-CPU core_type files (Linux 5.18+).
- *
- *  Enumerates /sys/devices/system/cpu/cpu* directories and reads each
- *  CPU's topology/core_type file to classify it as P-core or E-core.
  *
  *  @return     A populated TopologyMap on success, or TopologyError
  *              indicating why detection failed.
@@ -222,12 +213,12 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
             continue;
         }
 
-        // Parse the CPU ID from directory name (e.g., "cpu0" -> 0)
+        // Parse the CPU ID from directory name
         auto cpu_id_str = std::string_view(filename).substr(3);
         auto cpu_id = parseNumber(cpu_id_str);
         if (!cpu_id)
         {
-            // Not a numeric CPU directory (e.g., "cpufreq", "cpuidle")
+            // Not a numeric CPU directory
             continue;
         }
 
@@ -294,7 +285,6 @@ auto TopologyMap::getCoreType(CpuId cpu_id) const -> std::expected<CoreType, Top
 
     auto type = cpu_to_type_[cpu_id];
 
-    // A CPU ID within bounds but marked Unknown means it wasn't in either list
     if (type == CoreType::kUnknown)
     {
         return std::unexpected(TopologyError::kInvalidCpuId);
@@ -402,7 +392,6 @@ void TopologyMap::buildLookupTable()
     }
 
     // Resize lookup table to accommodate all CPU IDs (0 to max_cpu inclusive)
-    // Unassigned entries default to kUnknown
     cpu_to_type_.resize(max_cpu + 1, CoreType::kUnknown);
 
     // Populate P-core entries
@@ -506,8 +495,6 @@ auto parseCoreType(std::string_view content) -> std::expected<CoreType, Topology
 {
     auto trimmed = trim(content);
 
-    // Intel hybrid CPUs report "intel_core" or "intel_atom" (older kernels)
-    // or just "Core" or "Atom" (newer kernels)
     if (trimmed == "Core" || trimmed == "intel_core")
     {
         return CoreType::kPCore;

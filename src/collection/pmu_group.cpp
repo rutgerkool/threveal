@@ -56,7 +56,7 @@ auto makeHardwareAttr(std::uint64_t config, bool is_leader) -> perf_event_attr
 {
     perf_event_attr attr{};
 
-    // Zero-init required; perf_event_attr has many optional fields
+    // Zero-init required, perf_event_attr has many optional fields
     std::memset(&attr, 0, sizeof(attr));
 
     attr.type = PERF_TYPE_HARDWARE;

@@ -33,9 +33,6 @@ namespace
 /**
  *  Gets the current timestamp in nanoseconds since boot.
  *
- *  Uses CLOCK_MONOTONIC to match the timestamps from eBPF's bpf_ktime_get_ns(),
- *  ensuring consistent time base for migration-PMU correlation.
- *
  *  @return     Nanoseconds since boot.
  */
 auto getTimestampNs() noexcept -> std::uint64_t
@@ -54,8 +51,6 @@ auto getTimestampNs() noexcept -> std::uint64_t
 /**
  *  Gets the CPU ID where the calling thread is currently running.
  *
- *  Used to record which CPU the PMU sample was taken from.
- *
  *  @return     The current CPU ID, or 0 if detection fails.
  */
 auto getCurrentCpu() noexcept -> core::CpuId
@@ -64,7 +59,7 @@ auto getCurrentCpu() noexcept -> core::CpuId
     int cpu = sched_getcpu();
     if (cpu < 0)
     {
-        return 0;  // Fallback if syscall fails
+        return 0;
     }
     return static_cast<core::CpuId>(cpu);
 }
@@ -192,14 +187,14 @@ void PmuSampler::stop() noexcept
         return;
     }
 
-    // Request thread to stop (jthread handles this via request_stop)
+    // Request thread to stop
     if (sampling_thread_.joinable())
     {
         sampling_thread_.request_stop();
         sampling_thread_.join();
     }
 
-    // Disable PMU counters - intentionally ignoring errors during shutdown
+    // Disable PMU counters, ignoring errors during shutdown
     // as there's nothing we can do about them at this point
     auto disable_result = group_.disable();
     (void)disable_result;
@@ -233,14 +228,12 @@ void PmuSampler::samplingLoop(const std::stop_token& stop_token)
     // Sampling loop runs until stop is requested
     while (!stop_token.stop_requested())
     {
-        // Collect a sample
         if (collectSample())
         {
             sample_count_.fetch_add(1, std::memory_order_relaxed);
         }
 
         // Sleep for the configured interval
-        // Use sleep_for which handles stop_token interruption gracefully
         std::this_thread::sleep_for(interval_);
     }
 }
@@ -259,10 +252,6 @@ auto PmuSampler::collectSample() -> bool
     auto timestamp = getTimestampNs();
 
     // Get current CPU for the target thread
-    // Note: This gets the sampler thread's CPU, not the target's.
-    // For accurate per-sample CPU tracking, we'd need to read from
-    // /proc/<tid>/stat or use eBPF. For now, we use the sampler's CPU
-    // as a reasonable approximation since we're monitoring a specific thread.
     auto cpu_id = getCurrentCpu();
 
     // Build the PmuSample structure

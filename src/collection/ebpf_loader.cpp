@@ -126,7 +126,7 @@ auto EbpfLoader::attach() -> std::expected<void, EbpfError>
 
     if (attached_)
     {
-        return {};  // Already attached
+        return {};
     }
 
     int err = migration_tracker_bpf__attach(skel_);

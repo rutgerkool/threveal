@@ -155,10 +155,6 @@ auto makeEventAttr(PmuEventType event) -> perf_event_attr
 /**
  *  Maps errno values from perf_event_open() to PmuError.
  *
- *  perf_event_open() can fail with various errno values depending on the
- *  specific failure condition. This function translates them to our typed
- *  error enum for consistent error handling.
- *
  *  @param      err  The errno value to translate.
  *  @return     The corresponding PmuError value.
  */
@@ -242,9 +238,6 @@ auto PmuCounter::create(PmuEventType event, pid_t tid, int cpu)
     // - cpu=-1: monitor on any CPU the thread runs on
     // - group_fd=-1: not part of an event group (standalone counter)
     // - flags=0: no special flags
-    //
-    // Special case: if caller passes tid=-1, treat as "self" (tid=0)
-    // because tid=-1 with cpu=-1 is invalid per perf_event_open(2)
     pid_t effective_tid = (tid == -1) ? 0 : tid;
 
     int fd = perfEventOpen(&attr, effective_tid, cpu, -1, 0);
@@ -266,8 +259,6 @@ auto PmuCounter::read() const -> std::expected<std::uint64_t, core::PmuError>
     }
 
     // Reading from a perf_event fd returns the accumulated counter value.
-    // The read format depends on attr.read_format; we use the default which
-    // returns a single uint64_t count value.
     std::uint64_t value = 0;
     ssize_t bytes_read = ::read(fd_, &value, sizeof(value));
 
