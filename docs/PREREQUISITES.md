@@ -14,15 +14,26 @@ This document lists the system dependencies required to build and run Threveal.
 
 The following must be installed system-wide (not via vcpkg):
 ```bash
-# Ubuntu 22.04+
-sudo apt-get install libbpf-dev linux-tools-common linux-tools-$(uname -r) clang
+# Ubuntu 22.04+ base dependencies
+sudo apt-get install -y libelf-dev zlib1g-dev clang \
+    linux-tools-common linux-tools-$(uname -r)
+
+# libbpf 1.3.0 from source (apt version is too old)
+git clone https://github.com/libbpf/libbpf.git --depth 1 --branch v1.3.0
+cd libbpf/src
+make
+sudo make install
+echo "/usr/lib64" | sudo tee /etc/ld.so.conf.d/lib64.conf
+sudo ldconfig
 ```
 
 | Package | Purpose |
 |---------|---------|
-| `libbpf-dev` | eBPF program loading library |
-| `linux-tools-*` | Provides `bpftool` for skeleton generation |
+| `libelf-dev` | ELF parsing (libbpf build dependency) |
+| `zlib1g-dev` | Compression (libbpf build dependency) |
 | `clang` | Compiler with BPF target support |
+| `linux-tools-*` | Provides `bpftool` for skeleton generation |
+| `libbpf 1.3.0` | eBPF program loading (built from source) |
 
 ### Verification
 ```bash
@@ -69,3 +80,9 @@ sudo sysctl kernel.perf_event_paranoid=1
 
 - **CPU**: Intel 12th gen (Alder Lake) or newer hybrid architecture
 - **BTF**: Kernel must be built with `CONFIG_DEBUG_INFO_BTF=y`
+
+## CI/CD Notes
+
+In GitHub Actions CI, libbpf 1.3.0 is built from source because Ubuntu's packaged version (0.5.0) is too old for modern kernel BTF formats.
+
+eBPF tests that require `CAP_BPF` or root privileges will automatically skip in CI environments where these permissions are not available. The tests use Catch2's `SKIP()` macro to handle this gracefully.
