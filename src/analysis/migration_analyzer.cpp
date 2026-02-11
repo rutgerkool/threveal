@@ -20,6 +20,11 @@ MigrationAnalyzer::MigrationAnalyzer(const EventStore& store,
 {
 }
 
+void MigrationAnalyzer::setMaxSampleGap(std::uint64_t gap_ns) noexcept
+{
+    max_sample_gap_ns_ = gap_ns;
+}
+
 auto MigrationAnalyzer::analyze() const -> std::vector<MigrationImpact>
 {
     auto migrations = store_.allMigrations();
@@ -44,6 +49,20 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
     auto sample_after = store_.pmuAfterMigration(migration);
 
     if (!sample_before || !sample_after)
+    {
+        return MigrationImpact{
+            .event = migration,
+            .type = type,
+            .ipc_delta = 0.0,
+            .cache_miss_delta = 0.0,
+            .confidence = 0.0,
+        };
+    }
+
+    auto gap_before_ns = migration.timestamp_ns - sample_before->timestamp_ns;
+    auto gap_after_ns = sample_after->timestamp_ns - migration.timestamp_ns;
+
+    if (gap_before_ns > max_sample_gap_ns_ || gap_after_ns > max_sample_gap_ns_)
     {
         return MigrationImpact{
             .event = migration,

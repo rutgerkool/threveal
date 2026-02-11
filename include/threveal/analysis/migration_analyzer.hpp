@@ -36,9 +36,13 @@ struct MigrationImpact
 class MigrationAnalyzer
 {
   public:
+    static constexpr std::uint64_t kDefaultMaxSampleGapNs = 10'000'000;
+
     MigrationAnalyzer(const EventStore& store, const core::TopologyMap& topology) noexcept;
 
     [[nodiscard]] auto analyze() const -> std::vector<MigrationImpact>;
+
+    void setMaxSampleGap(std::uint64_t gap_ns) noexcept;
 
   private:
     [[nodiscard]] auto computeImpact(const core::MigrationEvent& migration) const
@@ -46,6 +50,7 @@ class MigrationAnalyzer
 
     const EventStore& store_;
     const core::TopologyMap& topology_;
+    std::uint64_t max_sample_gap_ns_{kDefaultMaxSampleGapNs};
 };
 
 }  // namespace threveal::analysis
