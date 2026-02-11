@@ -41,6 +41,9 @@ class MigrationAnalyzer
     [[nodiscard]] auto analyze() const -> std::vector<MigrationImpact>;
 
   private:
+    [[nodiscard]] auto computeImpact(const core::MigrationEvent& migration) const
+        -> MigrationImpact;
+
     const EventStore& store_;
     const core::TopologyMap& topology_;
 };

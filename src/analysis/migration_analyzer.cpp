@@ -29,18 +29,24 @@ auto MigrationAnalyzer::analyze() const -> std::vector<MigrationImpact>
 
     for (const auto& migration : migrations)
     {
-        auto type = core::classifyMigration(migration, topology_);
-
-        impacts.push_back(MigrationImpact{
-            .event = migration,
-            .type = type,
-            .ipc_delta = 0.0,
-            .cache_miss_delta = 0.0,
-            .confidence = 0.0,
-        });
+        impacts.push_back(computeImpact(migration));
     }
 
     return impacts;
+}
+
+auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) const
+    -> MigrationImpact
+{
+    auto type = core::classifyMigration(migration, topology_);
+
+    return MigrationImpact{
+        .event = migration,
+        .type = type,
+        .ipc_delta = 0.0,
+        .cache_miss_delta = 0.0,
+        .confidence = 0.0,
+    };
 }
 
 }  // namespace threveal::analysis
