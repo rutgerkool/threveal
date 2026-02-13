@@ -9,6 +9,7 @@
 
 #include "threveal/core/events.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -115,6 +116,66 @@ auto MigrationAnalyzer::calculateConfidence(std::uint64_t gap_before_ns,
     double normalized_gap = static_cast<double>(max_gap) / static_cast<double>(max_sample_gap_ns_);
 
     return std::exp(-kDecayRate * normalized_gap);
+}
+
+auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impacts) const
+    -> std::vector<MigrationTypeStats>
+{
+    struct Accumulator
+    {
+        std::uint32_t count = 0;
+        double ipc_sum = 0.0;
+        double cache_miss_sum = 0.0;
+        double branch_miss_sum = 0.0;
+        double confidence_sum = 0.0;
+    };
+
+    constexpr std::size_t kTypeCount = 5;
+    std::array<Accumulator, kTypeCount> accumulators{};
+
+    for (const auto& impact : impacts)
+    {
+        if (impact.confidence <= 0.0)
+        {
+            continue;
+        }
+
+        auto idx = static_cast<std::size_t>(impact.type);
+        if (idx >= kTypeCount)
+        {
+            continue;
+        }
+
+        auto& acc = accumulators.at(idx);
+        ++acc.count;
+        acc.ipc_sum += impact.ipc_delta;
+        acc.cache_miss_sum += impact.cache_miss_delta;
+        acc.branch_miss_sum += impact.branch_miss_delta;
+        acc.confidence_sum += impact.confidence;
+    }
+
+    std::vector<MigrationTypeStats> result;
+
+    for (std::size_t i = 0; i < kTypeCount; ++i)
+    {
+        const auto& acc = accumulators.at(i);
+        if (acc.count == 0)
+        {
+            continue;
+        }
+
+        auto divisor = static_cast<double>(acc.count);
+        result.push_back(MigrationTypeStats{
+            .type = static_cast<core::MigrationType>(i),
+            .count = acc.count,
+            .avg_ipc_delta = acc.ipc_sum / divisor,
+            .avg_cache_miss_delta = acc.cache_miss_sum / divisor,
+            .avg_branch_miss_delta = acc.branch_miss_sum / divisor,
+            .avg_confidence = acc.confidence_sum / divisor,
+        });
+    }
+
+    return result;
 }
 
 }  // namespace threveal::analysis

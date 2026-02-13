@@ -65,6 +65,9 @@ class MigrationAnalyzer
     [[nodiscard]] auto calculateConfidence(std::uint64_t gap_before_ns,
                                            std::uint64_t gap_after_ns) const noexcept -> double;
 
+    [[nodiscard]] auto aggregateByType(const std::vector<MigrationImpact>& impacts) const
+        -> std::vector<MigrationTypeStats>;
+
     const EventStore& store_;
     const core::TopologyMap& topology_;
     std::uint64_t max_sample_gap_ns_{kDefaultMaxSampleGapNs};
