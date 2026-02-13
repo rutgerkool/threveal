@@ -56,6 +56,7 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
             .type = type,
             .ipc_delta = 0.0,
             .cache_miss_delta = 0.0,
+            .branch_miss_delta = 0.0,
             .confidence = 0.0,
         };
     }
@@ -70,12 +71,23 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
             .type = type,
             .ipc_delta = 0.0,
             .cache_miss_delta = 0.0,
+            .branch_miss_delta = 0.0,
             .confidence = 0.0,
         };
     }
 
     double ipc_delta = sample_after->ipc() - sample_before->ipc();
     double cache_miss_delta = sample_after->llcMissRate() - sample_before->llcMissRate();
+
+    double branch_miss_before = (sample_before->instructions > 0)
+                                    ? static_cast<double>(sample_before->branch_misses) /
+                                          static_cast<double>(sample_before->instructions)
+                                    : 0.0;
+    double branch_miss_after = (sample_after->instructions > 0)
+                                   ? static_cast<double>(sample_after->branch_misses) /
+                                         static_cast<double>(sample_after->instructions)
+                                   : 0.0;
+    double branch_miss_delta = branch_miss_after - branch_miss_before;
 
     double confidence = calculateConfidence(gap_before_ns, gap_after_ns);
 
@@ -84,6 +96,7 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
         .type = type,
         .ipc_delta = ipc_delta,
         .cache_miss_delta = cache_miss_delta,
+        .branch_miss_delta = branch_miss_delta,
         .confidence = confidence,
     };
 }

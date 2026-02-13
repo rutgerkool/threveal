@@ -27,6 +27,7 @@ struct MigrationImpact
     core::MigrationType type;
     double ipc_delta;
     double cache_miss_delta;
+    double branch_miss_delta;
     double confidence;
 };
 
