@@ -13,6 +13,7 @@
 #include "threveal/core/topology.hpp"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace threveal::analysis
@@ -42,6 +43,24 @@ struct MigrationTypeStats
     double avg_cache_miss_delta;
     double avg_branch_miss_delta;
     double avg_confidence;
+};
+
+/**
+ *  Per-thread analysis summary combining migration counts and performance impact.
+ */
+struct ThreadStatistics
+{
+    std::uint32_t tid;
+    std::uint32_t pid;
+    std::string comm;
+    std::uint32_t total_migrations;
+    std::uint32_t p_to_e_migrations;
+    std::uint32_t e_to_p_migrations;
+    std::uint32_t p_to_p_migrations;
+    std::uint32_t e_to_e_migrations;
+    double avg_ipc_loss_on_p_to_e;
+    double avg_ipc_gain_on_e_to_p;
+    double avg_cache_miss_delta;
 };
 
 /**
