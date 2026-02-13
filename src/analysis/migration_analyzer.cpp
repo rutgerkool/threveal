@@ -9,6 +9,7 @@
 
 #include "threveal/core/events.hpp"
 
+#include <cmath>
 #include <vector>
 
 namespace threveal::analysis
@@ -76,13 +77,31 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
     double ipc_delta = sample_after->ipc() - sample_before->ipc();
     double cache_miss_delta = sample_after->llcMissRate() - sample_before->llcMissRate();
 
+    double confidence = calculateConfidence(gap_before_ns, gap_after_ns);
+
     return MigrationImpact{
         .event = migration,
         .type = type,
         .ipc_delta = ipc_delta,
         .cache_miss_delta = cache_miss_delta,
-        .confidence = 1.0,
+        .confidence = confidence,
     };
+}
+
+auto MigrationAnalyzer::calculateConfidence(std::uint64_t gap_before_ns,
+                                            std::uint64_t gap_after_ns) const noexcept -> double
+{
+    auto max_gap = std::max(gap_before_ns, gap_after_ns);
+
+    if (max_gap >= max_sample_gap_ns_)
+    {
+        return 0.0;
+    }
+
+    constexpr double kDecayRate = 3.0;
+    double normalized_gap = static_cast<double>(max_gap) / static_cast<double>(max_sample_gap_ns_);
+
+    return std::exp(-kDecayRate * normalized_gap);
 }
 
 }  // namespace threveal::analysis
