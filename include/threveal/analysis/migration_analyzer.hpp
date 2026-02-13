@@ -32,6 +32,19 @@ struct MigrationImpact
 };
 
 /**
+ *  Aggregated statistics for a specific migration type.
+ */
+struct MigrationTypeStats
+{
+    core::MigrationType type;
+    std::uint32_t count;
+    double avg_ipc_delta;
+    double avg_cache_miss_delta;
+    double avg_branch_miss_delta;
+    double avg_confidence;
+};
+
+/**
  *  Analyzes migration events correlated with PMU performance data.
  */
 class MigrationAnalyzer
