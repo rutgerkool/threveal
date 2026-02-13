@@ -27,6 +27,11 @@ void MigrationAnalyzer::setMaxSampleGap(std::uint64_t gap_ns) noexcept
     max_sample_gap_ns_ = gap_ns;
 }
 
+void MigrationAnalyzer::setMinConfidence(double threshold) noexcept
+{
+    min_confidence_ = threshold;
+}
+
 auto MigrationAnalyzer::analyze() const -> std::vector<MigrationImpact>
 {
     auto migrations = store_.allMigrations();
@@ -135,7 +140,7 @@ auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impa
 
     for (const auto& impact : impacts)
     {
-        if (impact.confidence <= 0.0)
+        if (impact.confidence < min_confidence_)
         {
             continue;
         }
