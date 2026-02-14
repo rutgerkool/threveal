@@ -34,19 +34,35 @@ void MigrationAnalyzer::setMinConfidence(double threshold) noexcept
     min_confidence_ = threshold;
 }
 
-auto MigrationAnalyzer::analyze() const -> std::vector<MigrationImpact>
+auto MigrationAnalyzer::analyze() const -> AnalysisResult
 {
     auto migrations = store_.allMigrations();
 
     std::vector<MigrationImpact> impacts;
     impacts.reserve(migrations.size());
 
+    std::uint32_t correlated = 0;
+
     for (const auto& migration : migrations)
     {
-        impacts.push_back(computeImpact(migration));
+        auto impact = computeImpact(migration);
+        if (impact.confidence >= min_confidence_)
+        {
+            ++correlated;
+        }
+        impacts.push_back(impact);
     }
 
-    return impacts;
+    auto type_stats = aggregateByType(impacts);
+    auto thread_stats = aggregateByThread(impacts);
+
+    return AnalysisResult{
+        .impacts = std::move(impacts),
+        .type_stats = std::move(type_stats),
+        .thread_stats = std::move(thread_stats),
+        .total_migrations = static_cast<std::uint32_t>(migrations.size()),
+        .correlated_migrations = correlated,
+    };
 }
 
 auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) const

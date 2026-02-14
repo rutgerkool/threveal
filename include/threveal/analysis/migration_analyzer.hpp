@@ -64,6 +64,18 @@ struct ThreadStatistics
 };
 
 /**
+ *  Complete analysis results from a profiling session.
+ */
+struct AnalysisResult
+{
+    std::vector<MigrationImpact> impacts;
+    std::vector<MigrationTypeStats> type_stats;
+    std::vector<ThreadStatistics> thread_stats;
+    std::uint32_t total_migrations;
+    std::uint32_t correlated_migrations;
+};
+
+/**
  *  Analyzes migration events correlated with PMU performance data.
  */
 class MigrationAnalyzer
@@ -74,7 +86,7 @@ class MigrationAnalyzer
 
     MigrationAnalyzer(const EventStore& store, const core::TopologyMap& topology) noexcept;
 
-    [[nodiscard]] auto analyze() const -> std::vector<MigrationImpact>;
+    [[nodiscard]] auto analyze() const -> AnalysisResult;
 
     void setMaxSampleGap(std::uint64_t gap_ns) noexcept;
     void setMinConfidence(double threshold) noexcept;
