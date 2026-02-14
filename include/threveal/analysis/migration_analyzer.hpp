@@ -89,6 +89,9 @@ class MigrationAnalyzer
     [[nodiscard]] auto aggregateByType(const std::vector<MigrationImpact>& impacts) const
         -> std::vector<MigrationTypeStats>;
 
+    [[nodiscard]] auto aggregateByThread(const std::vector<MigrationImpact>& impacts) const
+        -> std::vector<ThreadStatistics>;
+
     const EventStore& store_;
     const core::TopologyMap& topology_;
     std::uint64_t max_sample_gap_ns_{kDefaultMaxSampleGapNs};

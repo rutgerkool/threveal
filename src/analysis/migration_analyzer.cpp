@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace threveal::analysis
@@ -179,6 +181,127 @@ auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impa
             .avg_confidence = acc.confidence_sum / divisor,
         });
     }
+
+    return result;
+}
+
+auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& impacts) const
+    -> std::vector<ThreadStatistics>
+{
+    struct ThreadAccumulator
+    {
+        std::uint32_t pid = 0;
+        std::string comm;
+        std::uint32_t total = 0;
+        std::uint32_t p_to_e = 0;
+        std::uint32_t e_to_p = 0;
+        std::uint32_t p_to_p = 0;
+        std::uint32_t e_to_e = 0;
+        double p_to_e_ipc_sum = 0.0;
+        std::uint32_t p_to_e_confident = 0;
+        double e_to_p_ipc_sum = 0.0;
+        std::uint32_t e_to_p_confident = 0;
+        double cache_miss_sum = 0.0;
+        std::uint32_t cross_type_confident = 0;
+    };
+
+    std::unordered_map<std::uint32_t, ThreadAccumulator> thread_map;
+
+    for (const auto& impact : impacts)
+    {
+        auto tid = impact.event.tid;
+        auto& acc = thread_map[tid];
+
+        if (acc.total == 0)
+        {
+            acc.pid = impact.event.pid;
+            acc.comm = std::string(impact.event.commAsStringView());
+        }
+
+        ++acc.total;
+
+        switch (impact.type)
+        {
+            case core::MigrationType::kPToE:
+                ++acc.p_to_e;
+                break;
+            case core::MigrationType::kEToP:
+                ++acc.e_to_p;
+                break;
+            case core::MigrationType::kPToP:
+                ++acc.p_to_p;
+                break;
+            case core::MigrationType::kEToE:
+                ++acc.e_to_e;
+                break;
+            case core::MigrationType::kUnknown:
+                break;
+        }
+
+        if (impact.confidence < min_confidence_)
+        {
+            continue;
+        }
+
+        bool is_cross_type = (impact.type == core::MigrationType::kPToE ||
+                              impact.type == core::MigrationType::kEToP);
+
+        if (impact.type == core::MigrationType::kPToE)
+        {
+            acc.p_to_e_ipc_sum += impact.ipc_delta;
+            ++acc.p_to_e_confident;
+        }
+        else if (impact.type == core::MigrationType::kEToP)
+        {
+            acc.e_to_p_ipc_sum += impact.ipc_delta;
+            ++acc.e_to_p_confident;
+        }
+
+        if (is_cross_type)
+        {
+            acc.cache_miss_sum += impact.cache_miss_delta;
+            ++acc.cross_type_confident;
+        }
+    }
+
+    std::vector<ThreadStatistics> result;
+    result.reserve(thread_map.size());
+
+    for (const auto& [tid, acc] : thread_map)
+    {
+        double avg_ipc_loss = (acc.p_to_e_confident > 0)
+                                  ? acc.p_to_e_ipc_sum / static_cast<double>(acc.p_to_e_confident)
+                                  : 0.0;
+
+        double avg_ipc_gain = (acc.e_to_p_confident > 0)
+                                  ? acc.e_to_p_ipc_sum / static_cast<double>(acc.e_to_p_confident)
+                                  : 0.0;
+
+        double avg_cache_delta =
+            (acc.cross_type_confident > 0)
+                ? acc.cache_miss_sum / static_cast<double>(acc.cross_type_confident)
+                : 0.0;
+
+        result.push_back(ThreadStatistics{
+            .tid = tid,
+            .pid = acc.pid,
+            .comm = acc.comm,
+            .total_migrations = acc.total,
+            .p_to_e_migrations = acc.p_to_e,
+            .e_to_p_migrations = acc.e_to_p,
+            .p_to_p_migrations = acc.p_to_p,
+            .e_to_e_migrations = acc.e_to_e,
+            .avg_ipc_loss_on_p_to_e = avg_ipc_loss,
+            .avg_ipc_gain_on_e_to_p = avg_ipc_gain,
+            .avg_cache_miss_delta = avg_cache_delta,
+        });
+    }
+
+    std::ranges::sort(result,
+                      [](const ThreadStatistics& lhs, const ThreadStatistics& rhs)
+                      {
+                          return lhs.total_migrations > rhs.total_migrations;
+                      });
 
     return result;
 }
