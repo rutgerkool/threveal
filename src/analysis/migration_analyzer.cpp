@@ -20,7 +20,7 @@ namespace threveal::analysis
 
 MigrationAnalyzer::MigrationAnalyzer(const EventStore& store,
                                      const core::TopologyMap& topology) noexcept
-    : store_(store), topology_(topology)
+    : store_(&store), topology_(&topology)
 {
 }
 
@@ -36,7 +36,7 @@ void MigrationAnalyzer::setMinConfidence(double threshold) noexcept
 
 auto MigrationAnalyzer::analyze() const -> AnalysisResult
 {
-    auto migrations = store_.allMigrations();
+    auto migrations = store_->allMigrations();
 
     std::vector<MigrationImpact> impacts;
     impacts.reserve(migrations.size());
@@ -68,10 +68,10 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
 auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) const
     -> MigrationImpact
 {
-    auto type = core::classifyMigration(migration, topology_);
+    auto type = core::classifyMigration(migration, *topology_);
 
-    auto sample_before = store_.pmuBeforeMigration(migration);
-    auto sample_after = store_.pmuAfterMigration(migration);
+    auto sample_before = store_->pmuBeforeMigration(migration);
+    auto sample_after = store_->pmuAfterMigration(migration);
 
     if (!sample_before || !sample_after)
     {
