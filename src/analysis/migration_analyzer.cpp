@@ -7,10 +7,14 @@
 
 #include "threveal/analysis/migration_analyzer.hpp"
 
+#include "threveal/analysis/event_store.hpp"
 #include "threveal/core/events.hpp"
+#include "threveal/core/topology.hpp"
+#include "threveal/core/types.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
