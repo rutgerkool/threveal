@@ -195,6 +195,14 @@ if(THREVEAL_ENABLE_TESTING)
     Catch2::Catch2WithMain
   )
 
+  add_executable(test_migration_analyzer
+    tests/unit/test_migration_analyzer.cpp
+  )
+  target_link_libraries(test_migration_analyzer PRIVATE
+    threveal_core
+    Catch2::Catch2WithMain
+  )
+
   add_test(NAME topology_tests COMMAND test_topology)
   add_test(NAME events_tests COMMAND test_events)
   add_test(NAME event_store_tests COMMAND test_event_store)
@@ -202,6 +210,7 @@ if(THREVEAL_ENABLE_TESTING)
   add_test(NAME pmu_counter_tests COMMAND test_pmu_counter)
   add_test(NAME pmu_group_tests COMMAND test_pmu_group)
   add_test(NAME pmu_sampler_tests COMMAND test_pmu_sampler)
+  add_test(NAME migration_analyzer_tests COMMAND test_migration_analyzer)
 
   if(THREVEAL_ENABLE_BPF)
     add_executable(test_ebpf_loader
