@@ -211,3 +211,29 @@ TEST_CASE("MigrationAnalyzer confidence is zero beyond max gap", "[analysis][Mig
     REQUIRE(result.impacts[0].confidence == 0.0);
     REQUIRE(result.impacts[0].ipc_delta == 0.0);
 }
+
+TEST_CASE("MigrationAnalyzer respects custom max sample gap", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    // 5ms gap on each side
+    store.addPmuSample(makeHighPerfSample(0, 42, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(10'000'000, 42, 12));
+
+    SECTION("within default 10ms gap")
+    {
+        MigrationAnalyzer analyzer(store, topology);
+        auto result = analyzer.analyze();
+        REQUIRE(result.impacts[0].confidence > 0.0);
+    }
+
+    SECTION("exceeds custom 2ms gap")
+    {
+        MigrationAnalyzer analyzer(store, topology);
+        analyzer.setMaxSampleGap(2'000'000);
+        auto result = analyzer.analyze();
+        REQUIRE(result.impacts[0].confidence == 0.0);
+    }
+}
