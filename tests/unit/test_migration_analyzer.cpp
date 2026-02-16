@@ -6,6 +6,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -147,4 +148,66 @@ TEST_CASE("MigrationAnalyzer computes positive IPC delta for E-to-P",
     REQUIRE(impact.type == MigrationType::kEToP);
     REQUIRE(impact.ipc_delta == Approx(1.0));
     REQUIRE(impact.cache_miss_delta == Approx(-0.1));
+}
+
+TEST_CASE("MigrationAnalyzer confidence is high for close samples", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    // 100ns gap on each side
+    store.addPmuSample(makeHighPerfSample(4'999'900, 42, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(5'000'100, 42, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    REQUIRE(result.impacts[0].confidence > 0.99);
+}
+
+TEST_CASE("MigrationAnalyzer confidence decays with distance", "[analysis][MigrationAnalyzer]")
+{
+    auto topology = makeTestTopology();
+
+    constexpr std::uint64_t kBase = 50'000'000;
+
+    auto compute_confidence = [&](std::uint64_t gap_ns) -> double
+    {
+        EventStore store;
+        store.addPmuSample(makeHighPerfSample(kBase - gap_ns, 42, 0));
+        store.addMigration(makeMigration(kBase, 42, 0, 12));
+        store.addPmuSample(makeLowPerfSample(kBase + gap_ns, 42, 12));
+
+        MigrationAnalyzer analyzer(store, topology);
+        auto result = analyzer.analyze();
+        return result.impacts[0].confidence;
+    };
+
+    double conf_close = compute_confidence(100'000);
+    double conf_medium = compute_confidence(3'000'000);
+    double conf_far = compute_confidence(8'000'000);
+
+    REQUIRE(conf_close > conf_medium);
+    REQUIRE(conf_medium > conf_far);
+    REQUIRE(conf_far > 0.0);
+}
+
+TEST_CASE("MigrationAnalyzer confidence is zero beyond max gap", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    // 15ms gap exceeds default 10ms max
+    store.addPmuSample(makeHighPerfSample(0, 42, 0));
+    store.addMigration(makeMigration(15'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(16'000'000, 42, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    REQUIRE(result.impacts[0].confidence == 0.0);
+    REQUIRE(result.impacts[0].ipc_delta == 0.0);
 }
