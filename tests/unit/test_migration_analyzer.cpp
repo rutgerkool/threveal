@@ -237,3 +237,52 @@ TEST_CASE("MigrationAnalyzer respects custom max sample gap", "[analysis][Migrat
         REQUIRE(result.impacts[0].confidence == 0.0);
     }
 }
+
+TEST_CASE("MigrationAnalyzer handles only pre-migration sample", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(4'000'000, 42, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    REQUIRE(result.impacts[0].confidence == 0.0);
+    REQUIRE(result.impacts[0].ipc_delta == 0.0);
+}
+
+TEST_CASE("MigrationAnalyzer handles only post-migration sample", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(6'000'000, 42, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    REQUIRE(result.impacts[0].confidence == 0.0);
+    REQUIRE(result.impacts[0].ipc_delta == 0.0);
+}
+
+TEST_CASE("MigrationAnalyzer handles samples from wrong thread", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    // Samples belong to thread 99, migration is for thread 42
+    store.addPmuSample(makeHighPerfSample(4'000'000, 99, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(6'000'000, 99, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    REQUIRE(result.impacts[0].confidence == 0.0);
+}
