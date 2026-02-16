@@ -4,10 +4,12 @@
 #include "threveal/core/topology.hpp"
 #include "threveal/core/types.hpp"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <vector>
 
+using Catch::Approx;
 using threveal::analysis::EventStore;
 using threveal::analysis::MigrationAnalyzer;
 using threveal::core::CpuId;
@@ -102,4 +104,47 @@ TEST_CASE("MigrationAnalyzer with migrations but no PMU samples", "[analysis][Mi
     REQUIRE(result.impacts[0].confidence == 0.0);
     REQUIRE(result.impacts[0].ipc_delta == 0.0);
     REQUIRE(result.impacts[0].cache_miss_delta == 0.0);
+}
+
+TEST_CASE("MigrationAnalyzer computes IPC delta correctly", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(4'000'000, 42, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(6'000'000, 42, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    const auto& impact = result.impacts[0];
+
+    REQUIRE(impact.type == MigrationType::kPToE);
+    REQUIRE(impact.ipc_delta == Approx(-1.0));
+    REQUIRE(impact.cache_miss_delta == Approx(0.1));
+    REQUIRE(impact.confidence > 0.0);
+    REQUIRE(impact.confidence <= 1.0);
+}
+
+TEST_CASE("MigrationAnalyzer computes positive IPC delta for E-to-P",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeLowPerfSample(4'000'000, 42, 12));
+    store.addMigration(makeMigration(5'000'000, 42, 12, 0));
+    store.addPmuSample(makeHighPerfSample(6'000'000, 42, 0));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    const auto& impact = result.impacts[0];
+
+    REQUIRE(impact.type == MigrationType::kEToP);
+    REQUIRE(impact.ipc_delta == Approx(1.0));
+    REQUIRE(impact.cache_miss_delta == Approx(-0.1));
 }
