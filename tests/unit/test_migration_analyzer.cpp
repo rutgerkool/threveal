@@ -286,3 +286,51 @@ TEST_CASE("MigrationAnalyzer handles samples from wrong thread", "[analysis][Mig
     REQUIRE(result.impacts.size() == 1);
     REQUIRE(result.impacts[0].confidence == 0.0);
 }
+
+TEST_CASE("MigrationAnalyzer handles zero-cycle PMU samples", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makePmuSample(4'000'000, 42, 0, 0, 0, 0, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makePmuSample(6'000'000, 42, 12, 0, 0, 0, 0));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    REQUIRE(result.impacts[0].ipc_delta == 0.0);
+    REQUIRE(result.impacts[0].cache_miss_delta == 0.0);
+    REQUIRE(result.impacts[0].confidence > 0.0);
+}
+
+TEST_CASE("MigrationAnalyzer min confidence controls aggregation", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    // 5ms gap on each side → moderate confidence
+    store.addPmuSample(makeHighPerfSample(0, 42, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(10'000'000, 42, 12));
+
+    SECTION("default threshold includes moderate confidence")
+    {
+        MigrationAnalyzer analyzer(store, topology);
+        auto result = analyzer.analyze();
+        REQUIRE(result.correlated_migrations == 1);
+        REQUIRE_FALSE(result.type_stats.empty());
+    }
+
+    SECTION("high threshold excludes moderate confidence")
+    {
+        MigrationAnalyzer analyzer(store, topology);
+        analyzer.setMinConfidence(0.95);
+        auto result = analyzer.analyze();
+
+        REQUIRE(result.total_migrations == 1);
+        REQUIRE(result.correlated_migrations == 0);
+        REQUIRE(result.type_stats.empty());
+    }
+}
