@@ -125,6 +125,7 @@ TEST_CASE("MigrationAnalyzer computes IPC delta correctly", "[analysis][Migratio
     REQUIRE(impact.type == MigrationType::kPToE);
     REQUIRE(impact.ipc_delta == Approx(-1.0));
     REQUIRE(impact.cache_miss_delta == Approx(0.1));
+    REQUIRE(impact.branch_miss_delta == Approx(0.0001 - 0.000025));
     REQUIRE(impact.confidence > 0.0);
     REQUIRE(impact.confidence <= 1.0);
 }
@@ -302,6 +303,7 @@ TEST_CASE("MigrationAnalyzer handles zero-cycle PMU samples", "[analysis][Migrat
     REQUIRE(result.impacts.size() == 1);
     REQUIRE(result.impacts[0].ipc_delta == 0.0);
     REQUIRE(result.impacts[0].cache_miss_delta == 0.0);
+    REQUIRE(result.impacts[0].branch_miss_delta == 0.0);
     REQUIRE(result.impacts[0].confidence > 0.0);
 }
 
