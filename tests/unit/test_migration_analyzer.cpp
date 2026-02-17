@@ -193,6 +193,7 @@ TEST_CASE("MigrationAnalyzer confidence decays with distance", "[analysis][Migra
     REQUIRE(conf_close > conf_medium);
     REQUIRE(conf_medium > conf_far);
     REQUIRE(conf_far > 0.0);
+    REQUIRE(conf_close == Approx(std::exp(-3.0 * 0.1 / 10.0)).epsilon(0.001));
 }
 
 TEST_CASE("MigrationAnalyzer confidence is zero beyond max gap", "[analysis][MigrationAnalyzer]")
