@@ -102,16 +102,64 @@ struct MigrationTypeStats
  */
 struct ThreadStatistics
 {
+    /**
+     *  Thread ID.
+     */
     std::uint32_t tid;
+
+    /**
+     *  Process ID.
+     */
     std::uint32_t pid;
+
+    /**
+     *  Command name of the thread.
+     */
     std::string comm;
+
+    /**
+     *  Total number of migrations for this thread.
+     */
     std::uint32_t total_migrations;
+
+    /**
+     *  Number of P-core to E-core migrations.
+     */
     std::uint32_t p_to_e_migrations;
+
+    /**
+     *  Number of E-core to P-core migrations.
+     */
     std::uint32_t e_to_p_migrations;
+
+    /**
+     *  Number of P-core to P-core migrations.
+     */
     std::uint32_t p_to_p_migrations;
+
+    /**
+     *  Number of E-core to E-core migrations.
+     */
     std::uint32_t e_to_e_migrations;
+
+    /**
+     *  Average IPC loss observed on P→E migrations.
+     *  Negative values indicate performance degradation.
+     *  Zero if no P→E migrations occurred.
+     */
     double avg_ipc_loss_on_p_to_e;
+
+    /**
+     *  Average IPC gain observed on E→P migrations.
+     *  Positive values indicate performance improvement.
+     *  Zero if no E→P migrations occurred.
+     */
     double avg_ipc_gain_on_e_to_p;
+
+    /**
+     *  Average LLC miss rate delta across all cross-type migrations.
+     *  Positive values indicate cache state destruction on migration.
+     */
     double avg_cache_miss_delta;
 };
 
