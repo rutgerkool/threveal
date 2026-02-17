@@ -168,10 +168,29 @@ struct ThreadStatistics
  */
 struct AnalysisResult
 {
+    /**
+     *  Per-migration performance impact measurements.
+     */
     std::vector<MigrationImpact> impacts;
+
+    /**
+     *  Aggregated statistics grouped by migration type.
+     */
     std::vector<MigrationTypeStats> type_stats;
+
+    /**
+     *  Per-thread analysis summaries.
+     */
     std::vector<ThreadStatistics> thread_stats;
+
+    /**
+     *  Total number of migrations analyzed.
+     */
     std::uint32_t total_migrations;
+
+    /**
+     *  Number of migrations that could be correlated with PMU samples.
+     */
     std::uint32_t correlated_migrations;
 };
 
