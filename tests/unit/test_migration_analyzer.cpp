@@ -461,3 +461,36 @@ TEST_CASE("MigrationAnalyzer thread stats count all migration types",
     REQUIRE(stats.p_to_p_migrations == 1);
     REQUIRE(stats.e_to_e_migrations == 1);
 }
+
+TEST_CASE("MigrationAnalyzer result counts are consistent", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    for (int i = 0; i < 5; ++i)
+    {
+        auto ts = static_cast<std::uint64_t>(i + 1) * 2'000'000;
+        store.addPmuSample(makeHighPerfSample(ts - 100'000, 42, 0));
+        store.addMigration(makeMigration(ts, 42, 0, 12));
+        store.addPmuSample(makeLowPerfSample(ts + 100'000, 42, 12));
+    }
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == result.total_migrations);
+
+    std::uint32_t type_sum = 0;
+    for (const auto& stats : result.type_stats)
+    {
+        type_sum += stats.count;
+    }
+    REQUIRE(type_sum == result.correlated_migrations);
+
+    std::uint32_t thread_sum = 0;
+    for (const auto& stats : result.thread_stats)
+    {
+        thread_sum += stats.total_migrations;
+    }
+    REQUIRE(thread_sum == result.total_migrations);
+}
