@@ -47,7 +47,7 @@ auto makeMigration(std::uint64_t timestamp_ns, std::uint32_t tid, CpuId src, Cpu
 
 auto makePmuSample(std::uint64_t timestamp_ns, std::uint32_t tid, CpuId cpu,
                    std::uint64_t instructions, std::uint64_t cycles, std::uint64_t llc_misses,
-                   std::uint64_t llc_references) -> PmuSample
+                   std::uint64_t llc_references, std::uint64_t branch_misses) -> PmuSample
 {
     return PmuSample{
         .timestamp_ns = timestamp_ns,
@@ -57,18 +57,18 @@ auto makePmuSample(std::uint64_t timestamp_ns, std::uint32_t tid, CpuId cpu,
         .cycles = cycles,
         .llc_misses = llc_misses,
         .llc_references = llc_references,
-        .branch_misses = 0,
+        .branch_misses = branch_misses,
     };
 }
 
 auto makeHighPerfSample(std::uint64_t timestamp_ns, std::uint32_t tid, CpuId cpu) -> PmuSample
 {
-    return makePmuSample(timestamp_ns, tid, cpu, 2'000'000, 1'000'000, 100, 1000);
+    return makePmuSample(timestamp_ns, tid, cpu, 2'000'000, 1'000'000, 100, 1000, 50);
 }
 
 auto makeLowPerfSample(std::uint64_t timestamp_ns, std::uint32_t tid, CpuId cpu) -> PmuSample
 {
-    return makePmuSample(timestamp_ns, tid, cpu, 1'000'000, 1'000'000, 200, 1000);
+    return makePmuSample(timestamp_ns, tid, cpu, 1'000'000, 1'000'000, 200, 1000, 100);
 }
 
 }  // namespace
@@ -292,9 +292,9 @@ TEST_CASE("MigrationAnalyzer handles zero-cycle PMU samples", "[analysis][Migrat
     EventStore store;
     auto topology = makeTestTopology();
 
-    store.addPmuSample(makePmuSample(4'000'000, 42, 0, 0, 0, 0, 0));
+    store.addPmuSample(makePmuSample(4'000'000, 42, 0, 0, 0, 0, 0, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
-    store.addPmuSample(makePmuSample(6'000'000, 42, 12, 0, 0, 0, 0));
+    store.addPmuSample(makePmuSample(6'000'000, 42, 12, 0, 0, 0, 0, 0));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
