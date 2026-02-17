@@ -66,11 +66,34 @@ struct MigrationImpact
  */
 struct MigrationTypeStats
 {
+    /**
+     *  The migration type these statistics describe.
+     */
     core::MigrationType type;
+
+    /**
+     *  Total number of migrations of this type.
+     */
     std::uint32_t count;
+
+    /**
+     *  Average IPC delta across all migrations of this type.
+     */
     double avg_ipc_delta;
+
+    /**
+     *  Average LLC miss rate delta across all migrations of this type.
+     */
     double avg_cache_miss_delta;
+
+    /**
+     *  Average branch miss rate delta across all migrations of this type.
+     */
     double avg_branch_miss_delta;
+
+    /**
+     *  Average confidence score across all migrations of this type.
+     */
     double avg_confidence;
 };
 
