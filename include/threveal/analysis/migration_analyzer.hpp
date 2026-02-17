@@ -25,11 +25,39 @@ namespace threveal::analysis
  */
 struct MigrationImpact
 {
+    /**
+     *  The migration event that was analyzed.
+     */
     core::MigrationEvent event;
+
+    /**
+     *  Classification of this migration by source and destination core types.
+     */
     core::MigrationType type;
+
+    /**
+     *  Change in Instructions Per Cycle across the migration boundary.
+     *  Negative values indicate performance degradation (fewer instructions
+     *  per cycle after migration).
+     */
     double ipc_delta;
+
+    /**
+     *  Change in LLC miss rate across the migration boundary.
+     *  Positive values indicate increased cache pressure (more misses after
+     *  migration).
+     */
     double cache_miss_delta;
+
+    /**
+     *  Change in branch miss rate across the migration boundary.
+     *  Positive values indicate increased branch mispredictions after migration.
+     */
     double branch_miss_delta;
+
+    /**
+     *  Confidence score for this impact measurement (0.0 to 1.0).
+     */
     double confidence;
 };
 
