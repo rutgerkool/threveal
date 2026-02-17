@@ -385,3 +385,76 @@ TEST_CASE("MigrationAnalyzer aggregates by type", "[analysis][MigrationAnalyzer]
     REQUIRE(p_to_e != result.type_stats.end());
     REQUIRE(p_to_e->count == 1);
 }
+
+TEST_CASE("MigrationAnalyzer aggregates by thread", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    // Thread 42: two P→E migrations
+    store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
+    store.addMigration(makeMigration(1'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+
+    store.addPmuSample(makeHighPerfSample(1'900'000, 42, 0));
+    store.addMigration(makeMigration(2'000'000, 42, 0, 13));
+    store.addPmuSample(makeLowPerfSample(2'100'000, 42, 13));
+
+    // Thread 43: one E→P migration
+    store.addPmuSample(makeLowPerfSample(2'900'000, 43, 12));
+    store.addMigration(makeMigration(3'000'000, 43, 12, 0));
+    store.addPmuSample(makeHighPerfSample(3'100'000, 43, 0));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.thread_stats.size() == 2);
+
+    REQUIRE(result.thread_stats[0].tid == 42);
+    REQUIRE(result.thread_stats[0].total_migrations == 2);
+    REQUIRE(result.thread_stats[0].p_to_e_migrations == 2);
+    REQUIRE(result.thread_stats[0].e_to_p_migrations == 0);
+    REQUIRE(result.thread_stats[0].avg_ipc_loss_on_p_to_e == Approx(-1.0));
+    REQUIRE(result.thread_stats[0].avg_ipc_gain_on_e_to_p == 0.0);
+
+    REQUIRE(result.thread_stats[1].tid == 43);
+    REQUIRE(result.thread_stats[1].total_migrations == 1);
+    REQUIRE(result.thread_stats[1].p_to_e_migrations == 0);
+    REQUIRE(result.thread_stats[1].e_to_p_migrations == 1);
+    REQUIRE(result.thread_stats[1].avg_ipc_gain_on_e_to_p == Approx(1.0));
+}
+
+TEST_CASE("MigrationAnalyzer thread stats count all migration types",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
+    store.addMigration(makeMigration(1'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+
+    store.addPmuSample(makeLowPerfSample(1'900'000, 42, 12));
+    store.addMigration(makeMigration(2'000'000, 42, 12, 0));
+    store.addPmuSample(makeHighPerfSample(2'100'000, 42, 0));
+
+    store.addPmuSample(makeHighPerfSample(2'900'000, 42, 0));
+    store.addMigration(makeMigration(3'000'000, 42, 0, 1));
+    store.addPmuSample(makeHighPerfSample(3'100'000, 42, 1));
+
+    store.addPmuSample(makeLowPerfSample(3'900'000, 42, 12));
+    store.addMigration(makeMigration(4'000'000, 42, 12, 13));
+    store.addPmuSample(makeLowPerfSample(4'100'000, 42, 13));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.thread_stats.size() == 1);
+    const auto& stats = result.thread_stats[0];
+
+    REQUIRE(stats.total_migrations == 4);
+    REQUIRE(stats.p_to_e_migrations == 1);
+    REQUIRE(stats.e_to_p_migrations == 1);
+    REQUIRE(stats.p_to_p_migrations == 1);
+    REQUIRE(stats.e_to_e_migrations == 1);
+}
