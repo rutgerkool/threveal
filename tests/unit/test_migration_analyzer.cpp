@@ -334,3 +334,54 @@ TEST_CASE("MigrationAnalyzer min confidence controls aggregation", "[analysis][M
         REQUIRE(result.type_stats.empty());
     }
 }
+
+TEST_CASE("MigrationAnalyzer correlates multiple migrations with interleaved samples",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(1'000'000, 42, 0));
+    store.addMigration(makeMigration(2'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(3'000'000, 42, 12));
+    store.addMigration(makeMigration(4'000'000, 42, 12, 0));
+    store.addPmuSample(makeHighPerfSample(5'000'000, 42, 0));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 2);
+
+    REQUIRE(result.impacts[0].type == MigrationType::kPToE);
+    REQUIRE(result.impacts[0].ipc_delta == Approx(-1.0));
+
+    REQUIRE(result.impacts[1].type == MigrationType::kEToP);
+    REQUIRE(result.impacts[1].ipc_delta == Approx(1.0));
+}
+
+TEST_CASE("MigrationAnalyzer aggregates by type", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
+    store.addMigration(makeMigration(1'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+
+    store.addPmuSample(makeLowPerfSample(1'900'000, 43, 12));
+    store.addMigration(makeMigration(2'000'000, 43, 12, 0));
+    store.addPmuSample(makeHighPerfSample(2'100'000, 43, 0));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.type_stats.size() == 2);
+
+    auto p_to_e = std::find_if(result.type_stats.begin(), result.type_stats.end(),
+                               [](const auto& stats)
+                               {
+                                   return stats.type == MigrationType::kPToE;
+                               });
+    REQUIRE(p_to_e != result.type_stats.end());
+    REQUIRE(p_to_e->count == 1);
+}
