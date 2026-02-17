@@ -11,6 +11,7 @@
 #include "threveal/analysis/event_store.hpp"
 #include "threveal/core/events.hpp"
 #include "threveal/core/topology.hpp"
+#include "threveal/core/types.hpp"
 
 #include <cstdint>
 #include <string>
