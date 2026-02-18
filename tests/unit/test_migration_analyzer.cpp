@@ -1,3 +1,10 @@
+/**
+ *  @file       test_migration_analyzer.cpp
+ *  @author     Rutger Kool <rutgerkool@gmail.com>
+ *
+ *  Unit tests for MigrationAnalyzer.
+ */
+
 #include "threveal/analysis/event_store.hpp"
 #include "threveal/analysis/migration_analyzer.hpp"
 #include "threveal/core/events.hpp"
