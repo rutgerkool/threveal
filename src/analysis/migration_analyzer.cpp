@@ -161,6 +161,7 @@ auto MigrationAnalyzer::calculateConfidence(std::uint64_t gap_before_ns,
 auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impacts) const
     -> std::vector<MigrationTypeStats>
 {
+    // Accumulators for each migration type
     struct Accumulator
     {
         std::uint32_t count = 0;
@@ -170,11 +171,13 @@ auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impa
         double confidence_sum = 0.0;
     };
 
+    // Use an array indexed by MigrationType enum value (0-4)
     constexpr std::size_t kTypeCount = 5;
     std::array<Accumulator, kTypeCount> accumulators{};
 
     for (const auto& impact : impacts)
     {
+        // Only include impacts that meet the confidence threshold
         if (impact.confidence < min_confidence_)
         {
             continue;
@@ -194,6 +197,7 @@ auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impa
         acc.confidence_sum += impact.confidence;
     }
 
+    // Convert accumulators to MigrationTypeStats, skipping types with zero count
     std::vector<MigrationTypeStats> result;
 
     for (std::size_t i = 0; i < kTypeCount; ++i)
@@ -221,6 +225,7 @@ auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impa
 auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& impacts) const
     -> std::vector<ThreadStatistics>
 {
+    // Per-thread accumulator for building statistics
     struct ThreadAccumulator
     {
         std::uint32_t pid = 0;
@@ -230,6 +235,7 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         std::uint32_t e_to_p = 0;
         std::uint32_t p_to_p = 0;
         std::uint32_t e_to_e = 0;
+        // Only accumulate from impacts meeting confidence threshold
         double p_to_e_ipc_sum = 0.0;
         std::uint32_t p_to_e_confident = 0;
         double e_to_p_ipc_sum = 0.0;
@@ -245,12 +251,14 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         auto tid = impact.event.tid;
         auto& acc = thread_map[tid];
 
+        // Set identity fields on first encounter
         if (acc.total == 0)
         {
             acc.pid = impact.event.pid;
             acc.comm = std::string(impact.event.commAsStringView());
         }
 
+        // Count all migrations regardless of confidence
         ++acc.total;
 
         switch (impact.type)
@@ -271,6 +279,7 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
                 break;
         }
 
+        // Accumulate performance deltas only for confident measurements
         if (impact.confidence < min_confidence_)
         {
             continue;
@@ -297,6 +306,7 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         }
     }
 
+    // Convert accumulators to ThreadStatistics
     std::vector<ThreadStatistics> result;
     result.reserve(thread_map.size());
 
@@ -330,6 +340,7 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         });
     }
 
+    // Sort by total migrations descending for convenient consumption
     std::ranges::sort(result,
                       [](const ThreadStatistics& lhs, const ThreadStatistics& rhs)
                       {
