@@ -200,14 +200,46 @@ struct AnalysisResult
 class MigrationAnalyzer
 {
   public:
+    /**
+     *  Maximum time gap (in nanoseconds) between a migration and a PMU sample
+     *  for the sample to be considered relevant.
+     */
     static constexpr std::uint64_t kDefaultMaxSampleGapNs = 10'000'000;
+
+    /**
+     *  Minimum confidence threshold for including an impact in aggregations.
+     */
     static constexpr double kDefaultMinConfidence = 0.1;
 
+    /**
+     *  Constructs an analyzer for the given event store and topology.
+     *
+     *  @param      store     The event store containing migrations and PMU samples.
+     *  @param      topology  The CPU topology map for core type classification.
+     */
     MigrationAnalyzer(const EventStore& store, const core::TopologyMap& topology) noexcept;
 
+    /**
+     *  Runs the full analysis pipeline and returns results.
+     *
+     *  @return     Complete analysis results.
+     */
     [[nodiscard]] auto analyze() const -> AnalysisResult;
 
+    /**
+     *  Sets the maximum allowed time gap between a migration and a PMU sample.
+     *
+     *  @param      gap_ns  Maximum gap in nanoseconds. Samples beyond this
+     *                       distance are not used for correlation.
+     */
     void setMaxSampleGap(std::uint64_t gap_ns) noexcept;
+
+    /**
+     *  Sets the minimum confidence threshold for statistical aggregation.
+     *
+     *  @param      threshold  Minimum confidence (0.0 to 1.0). Impacts below
+     *                          this value are excluded from averages.
+     */
     void setMinConfidence(double threshold) noexcept;
 
   private:
