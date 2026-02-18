@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <string_view>
 
 // Forward declaration of the generated skeleton structure (name from libbpf)
@@ -19,6 +20,22 @@ struct migration_tracker_bpf;
 
 namespace threveal::collection
 {
+
+/**
+ *  Custom deleter for libbpf skeleton objects.
+ *
+ *  Calls the libbpf-generated destroy function to release all
+ *  BPF resources associated with the skeleton.
+ */
+struct BpfSkeletonDeleter
+{
+    void operator()(migration_tracker_bpf* skel) const noexcept;
+};
+
+/**
+ *  Owning smart pointer for a migration_tracker_bpf skeleton.
+ */
+using BpfSkeletonPtr = std::unique_ptr<migration_tracker_bpf, BpfSkeletonDeleter>;
 
 /**
  *  Error conditions that can occur during eBPF operations.
@@ -146,9 +163,9 @@ class EbpfLoader
     [[nodiscard]] auto isValid() const noexcept -> bool;
 
   private:
-    explicit EbpfLoader(migration_tracker_bpf* skel) noexcept;
+    explicit EbpfLoader(BpfSkeletonPtr skel) noexcept;
 
-    migration_tracker_bpf* skel_;
+    BpfSkeletonPtr skel_;
     bool attached_{false};
 };
 

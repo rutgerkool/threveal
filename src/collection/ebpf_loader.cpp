@@ -41,26 +41,23 @@ auto errnoToEbpfError(int err) -> EbpfError
 
 }  // namespace
 
-EbpfLoader::EbpfLoader(migration_tracker_bpf* skel) noexcept : skel_(skel) {}
+void BpfSkeletonDeleter::operator()(migration_tracker_bpf* skel) const noexcept
+{
+    migration_tracker_bpf__destroy(skel);
+}
+
+EbpfLoader::EbpfLoader(BpfSkeletonPtr skel) noexcept : skel_(std::move(skel)) {}
 
 EbpfLoader::~EbpfLoader()
 {
-    if (skel_ == nullptr)
-    {
-        return;
-    }
-
     if (attached_)
     {
         detach();
     }
-
-    migration_tracker_bpf__destroy(skel_);
-    skel_ = nullptr;
 }
 
 EbpfLoader::EbpfLoader(EbpfLoader&& other) noexcept
-    : skel_(std::exchange(other.skel_, nullptr)), attached_(std::exchange(other.attached_, false))
+    : skel_(std::move(other.skel_)), attached_(std::exchange(other.attached_, false))
 {
 }
 
@@ -71,18 +68,14 @@ auto EbpfLoader::operator=(EbpfLoader&& other) noexcept -> EbpfLoader&
         return *this;
     }
 
-    // Clean up current resources
-    if (skel_ != nullptr)
+    // Detach before destroying current skeleton
+    if (attached_)
     {
-        if (attached_)
-        {
-            detach();
-        }
-        migration_tracker_bpf__destroy(skel_);
+        detach();
     }
 
-    // Take ownership
-    skel_ = std::exchange(other.skel_, nullptr);
+    // Take ownership (old skel_ automatically destroyed by unique_ptr)
+    skel_ = std::move(other.skel_);
     attached_ = std::exchange(other.attached_, false);
 
     return *this;
@@ -96,8 +89,8 @@ auto EbpfLoader::create() -> std::expected<EbpfLoader, EbpfError>
     open_opts.btf_custom_path = "/sys/kernel/btf/vmlinux";
 
     // Open the BPF object with explicit BTF path
-    migration_tracker_bpf* skel = migration_tracker_bpf__open_opts(&open_opts);
-    if (skel == nullptr)
+    BpfSkeletonPtr skel{migration_tracker_bpf__open_opts(&open_opts)};
+    if (!skel)
     {
         if (errno == EPERM || errno == EACCES)
         {
@@ -107,19 +100,18 @@ auto EbpfLoader::create() -> std::expected<EbpfLoader, EbpfError>
     }
 
     // Load the BPF program into the kernel
-    int err = migration_tracker_bpf__load(skel);
+    int err = migration_tracker_bpf__load(skel.get());
     if (err != 0)
     {
-        migration_tracker_bpf__destroy(skel);
         return std::unexpected(errnoToEbpfError(err));
     }
 
-    return EbpfLoader{skel};
+    return EbpfLoader{std::move(skel)};
 }
 
 auto EbpfLoader::attach() -> std::expected<void, EbpfError>
 {
-    if (skel_ == nullptr)
+    if (!skel_)
     {
         return std::unexpected(EbpfError::kInvalidState);
     }
@@ -129,7 +121,7 @@ auto EbpfLoader::attach() -> std::expected<void, EbpfError>
         return {};
     }
 
-    int err = migration_tracker_bpf__attach(skel_);
+    int err = migration_tracker_bpf__attach(skel_.get());
     if (err != 0)
     {
         return std::unexpected(errnoToEbpfError(err));
@@ -141,18 +133,18 @@ auto EbpfLoader::attach() -> std::expected<void, EbpfError>
 
 void EbpfLoader::detach() noexcept
 {
-    if (skel_ == nullptr || !attached_)
+    if (!skel_ || !attached_)
     {
         return;
     }
 
-    migration_tracker_bpf__detach(skel_);
+    migration_tracker_bpf__detach(skel_.get());
     attached_ = false;
 }
 
 auto EbpfLoader::setTargetPid(std::uint32_t pid) -> std::expected<void, EbpfError>
 {
-    if (skel_ == nullptr)
+    if (!skel_)
     {
         return std::unexpected(EbpfError::kInvalidState);
     }
@@ -175,7 +167,7 @@ auto EbpfLoader::setTargetPid(std::uint32_t pid) -> std::expected<void, EbpfErro
 
 auto EbpfLoader::ringBufferFd() const noexcept -> int
 {
-    if (skel_ == nullptr)
+    if (!skel_)
     {
         return -1;
     }
@@ -184,7 +176,7 @@ auto EbpfLoader::ringBufferFd() const noexcept -> int
 
 auto EbpfLoader::isAttached() const noexcept -> bool
 {
-    return skel_ != nullptr && attached_;
+    return skel_ && attached_;
 }
 
 auto EbpfLoader::isValid() const noexcept -> bool
