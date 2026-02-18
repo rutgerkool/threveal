@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <expected>
 #include <functional>
+#include <memory>
 #include <optional>
 
 // Forward declaration for libbpf ring buffer
@@ -23,6 +24,19 @@ struct ring_buffer;
 
 namespace threveal::collection
 {
+
+/**
+ *  Custom deleter for libbpf ring buffer objects.
+ */
+struct RingBufferDeleter
+{
+    void operator()(ring_buffer* rb) const noexcept;
+};
+
+/**
+ *  Owning smart pointer for a libbpf ring_buffer.
+ */
+using RingBufferPtr = std::unique_ptr<ring_buffer, RingBufferDeleter>;
 
 /**
  *  Callback type for delivering migration events.
@@ -95,7 +109,8 @@ class MigrationTracker
     [[nodiscard]] auto eventCount() const noexcept -> std::uint64_t;
 
   private:
-    MigrationTracker(EbpfLoader loader, ring_buffer* ring_buf, MigrationCallback callback) noexcept;
+    MigrationTracker(EbpfLoader loader, RingBufferPtr ring_buf,
+                     MigrationCallback callback) noexcept;
 
     /**
      *  Ring buffer callback invoked by libbpf.
@@ -103,7 +118,7 @@ class MigrationTracker
     static auto ringBufferCallback(void* ctx, void* data, std::size_t size) -> int;
 
     EbpfLoader loader_;
-    ring_buffer* ring_buf_;
+    RingBufferPtr ring_buf_;
     MigrationCallback callback_;
     std::atomic<std::uint64_t> event_count_{0};
     bool running_{false};

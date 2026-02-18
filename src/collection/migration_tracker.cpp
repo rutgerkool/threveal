@@ -26,9 +26,14 @@
 namespace threveal::collection
 {
 
-MigrationTracker::MigrationTracker(EbpfLoader loader, ring_buffer* ring_buf,
+void RingBufferDeleter::operator()(ring_buffer* rb) const noexcept
+{
+    ring_buffer__free(rb);
+}
+
+MigrationTracker::MigrationTracker(EbpfLoader loader, RingBufferPtr ring_buf,
                                    MigrationCallback callback) noexcept
-    : loader_(std::move(loader)), ring_buf_(ring_buf), callback_(std::move(callback))
+    : loader_(std::move(loader)), ring_buf_(std::move(ring_buf)), callback_(std::move(callback))
 {
 }
 
@@ -38,17 +43,11 @@ MigrationTracker::~MigrationTracker()
     {
         stop();
     }
-
-    if (ring_buf_ != nullptr)
-    {
-        ring_buffer__free(ring_buf_);
-        ring_buf_ = nullptr;
-    }
 }
 
 MigrationTracker::MigrationTracker(MigrationTracker&& other) noexcept
     : loader_(std::move(other.loader_)),
-      ring_buf_(std::exchange(other.ring_buf_, nullptr)),
+      ring_buf_(std::move(other.ring_buf_)),
       callback_(std::move(other.callback_)),
       event_count_(other.event_count_.load()),
       running_(std::exchange(other.running_, false))
@@ -67,14 +66,10 @@ auto MigrationTracker::operator=(MigrationTracker&& other) noexcept -> Migration
     {
         stop();
     }
-    if (ring_buf_ != nullptr)
-    {
-        ring_buffer__free(ring_buf_);
-    }
 
     // Take ownership
     loader_ = std::move(other.loader_);
-    ring_buf_ = std::exchange(other.ring_buf_, nullptr);
+    ring_buf_ = std::move(other.ring_buf_);
     callback_ = std::move(other.callback_);
     event_count_ = other.event_count_.load();
     running_ = std::exchange(other.running_, false);
@@ -106,13 +101,13 @@ auto MigrationTracker::create(MigrationCallback callback)
 
     // Create ring buffer consumer with nullptr context initially
     // The context will be set via the callback closure
-    ring_buffer* ring_buf = ring_buffer__new(ring_fd, ringBufferCallback, nullptr, nullptr);
-    if (ring_buf == nullptr)
+    RingBufferPtr ring_buf{ring_buffer__new(ring_fd, ringBufferCallback, nullptr, nullptr)};
+    if (!ring_buf)
     {
         return std::unexpected(EbpfError::kMapAccessFailed);
     }
 
-    return MigrationTracker{std::move(*loader), ring_buf, std::move(callback)};
+    return MigrationTracker{std::move(*loader), std::move(ring_buf), std::move(callback)};
 }
 
 auto MigrationTracker::start() -> std::expected<void, EbpfError>
@@ -145,13 +140,13 @@ void MigrationTracker::stop() noexcept
 
 auto MigrationTracker::poll(std::chrono::milliseconds timeout) -> int
 {
-    if (ring_buf_ == nullptr)
+    if (!ring_buf_)
     {
         return -1;
     }
 
     int timeout_ms = static_cast<int>(timeout.count());
-    return ring_buffer__poll(ring_buf_, timeout_ms);
+    return ring_buffer__poll(ring_buf_.get(), timeout_ms);
 }
 
 auto MigrationTracker::setTargetPid(std::optional<std::uint32_t> pid)
