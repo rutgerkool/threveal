@@ -243,15 +243,40 @@ class MigrationAnalyzer
     void setMinConfidence(double threshold) noexcept;
 
   private:
+    /**
+     *  Computes the performance impact of a single migration event.
+     *
+     *  @param      migration  The migration event to analyze.
+     *  @return     The computed impact with confidence score.
+     */
     [[nodiscard]] auto computeImpact(const core::MigrationEvent& migration) const
         -> MigrationImpact;
 
+    /**
+     *  Calculates a confidence score based on sample proximity to the migration.
+     *
+     *  @param      gap_before_ns  Time between pre-migration sample and migration.
+     *  @param      gap_after_ns   Time between migration and post-migration sample.
+     *  @return     Confidence score between 0.0 and 1.0.
+     */
     [[nodiscard]] auto calculateConfidence(std::uint64_t gap_before_ns,
                                            std::uint64_t gap_after_ns) const noexcept -> double;
 
+    /**
+     *  Aggregates per-migration impacts into per-type statistics.
+     *
+     *  @param      impacts  The per-migration impact measurements.
+     *  @return     Statistics grouped by migration type.
+     */
     [[nodiscard]] auto aggregateByType(const std::vector<MigrationImpact>& impacts) const
         -> std::vector<MigrationTypeStats>;
 
+    /**
+     *  Aggregates per-migration impacts into per-thread statistics.
+     *
+     *  @param      impacts  The per-migration impact measurements.
+     *  @return     Statistics grouped by thread ID.
+     */
     [[nodiscard]] auto aggregateByThread(const std::vector<MigrationImpact>& impacts) const
         -> std::vector<ThreadStatistics>;
 
