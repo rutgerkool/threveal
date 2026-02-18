@@ -235,7 +235,7 @@ if(THREVEAL_ENABLE_TESTING)
 
   # Configure AddressSanitizer to work correctly with ctest
   if(THREVEAL_ENABLE_SANITIZERS)
-    set_tests_properties(topology_tests events_tests event_store_tests errors_tests pmu_counter_tests pmu_group_tests pmu_sampler_tests PROPERTIES
+    set_tests_properties(topology_tests events_tests event_store_tests errors_tests pmu_counter_tests pmu_group_tests pmu_sampler_tests migration_analyzer_tests PROPERTIES
       ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0"
     )
   endif()
