@@ -42,6 +42,7 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
 {
     auto migrations = store_->allMigrations();
 
+    // Compute per-migration performance impact
     std::vector<MigrationImpact> impacts;
     impacts.reserve(migrations.size());
 
@@ -57,6 +58,7 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
         impacts.push_back(impact);
     }
 
+    // Aggregate into per-type and per-thread statistics
     auto type_stats = aggregateByType(impacts);
     auto thread_stats = aggregateByThread(impacts);
 
