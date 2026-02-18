@@ -237,6 +237,7 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         std::uint32_t e_to_p = 0;
         std::uint32_t p_to_p = 0;
         std::uint32_t e_to_e = 0;
+
         // Only accumulate from impacts meeting confidence threshold
         double p_to_e_ipc_sum = 0.0;
         std::uint32_t p_to_e_confident = 0;
