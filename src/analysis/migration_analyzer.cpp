@@ -72,11 +72,14 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
 auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) const
     -> MigrationImpact
 {
+    // Classify migration type using topology
     auto type = core::classifyMigration(migration, *topology_);
 
+    // Find closest PMU samples on each side of the migration boundary
     auto sample_before = store_->pmuBeforeMigration(migration);
     auto sample_after = store_->pmuAfterMigration(migration);
 
+    // If either sample is missing, return a zero-confidence impact
     if (!sample_before || !sample_after)
     {
         return MigrationImpact{
@@ -89,9 +92,11 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
         };
     }
 
+    // Compute time gaps between samples and migration
     auto gap_before_ns = migration.timestamp_ns - sample_before->timestamp_ns;
     auto gap_after_ns = sample_after->timestamp_ns - migration.timestamp_ns;
 
+    // Reject samples that are too far from the migration event
     if (gap_before_ns > max_sample_gap_ns_ || gap_after_ns > max_sample_gap_ns_)
     {
         return MigrationImpact{
@@ -104,9 +109,11 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
         };
     }
 
+    // Compute performance deltas across the migration boundary
     double ipc_delta = sample_after->ipc() - sample_before->ipc();
     double cache_miss_delta = sample_after->llcMissRate() - sample_before->llcMissRate();
 
+    // Branch miss rate: misses per instruction (normalized for comparison)
     double branch_miss_before = (sample_before->instructions > 0)
                                     ? static_cast<double>(sample_before->branch_misses) /
                                           static_cast<double>(sample_before->instructions)
@@ -132,6 +139,8 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
 auto MigrationAnalyzer::calculateConfidence(std::uint64_t gap_before_ns,
                                             std::uint64_t gap_after_ns) const noexcept -> double
 {
+    // Use the larger of the two gaps as the dominant uncertainty factor.
+    // A migration bracketed tightly by samples is more trustworthy.
     auto max_gap = std::max(gap_before_ns, gap_after_ns);
 
     if (max_gap >= max_sample_gap_ns_)
@@ -139,6 +148,10 @@ auto MigrationAnalyzer::calculateConfidence(std::uint64_t gap_before_ns,
         return 0.0;
     }
 
+    // Exponential decay: confidence = exp(-3 * gap / max_gap)
+    // At gap=0: confidence ≈ 1.0
+    // At gap=max/3: confidence ≈ 0.37
+    // At gap=max: confidence ≈ 0.05 (essentially zero)
     constexpr double kDecayRate = 3.0;
     double normalized_gap = static_cast<double>(max_gap) / static_cast<double>(max_sample_gap_ns_);
 
