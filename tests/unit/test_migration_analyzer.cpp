@@ -387,11 +387,11 @@ TEST_CASE("MigrationAnalyzer aggregates by type", "[analysis][MigrationAnalyzer]
 
     REQUIRE(result.type_stats.size() == 2);
 
-    auto p_to_e = std::find_if(result.type_stats.begin(), result.type_stats.end(),
-                               [](const auto& stats)
-                               {
-                                   return stats.type == MigrationType::kPToE;
-                               });
+    auto p_to_e = std::ranges::find_if(result.type_stats,
+                                       [](const auto& stats)
+                                       {
+                                           return stats.type == MigrationType::kPToE;
+                                       });
     REQUIRE(p_to_e != result.type_stats.end());
     REQUIRE(p_to_e->count == 1);
 }
