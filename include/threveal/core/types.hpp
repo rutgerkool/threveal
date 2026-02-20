@@ -3,9 +3,6 @@
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
  *  Core type definitions for the Threveal profiler.
- *
- *  Defines fundamental types used throughout Threveal for representing
- *  CPU identifiers and core type classifications on Intel hybrid architectures.
  */
 
 #ifndef THREVEAL_CORE_TYPES_HPP_
@@ -20,9 +17,6 @@ namespace threveal::core
 
 /**
  *  Type alias for logical CPU identifiers.
- *
- *  Represents the logical CPU number as seen by the Linux kernel (0-based).
- *  On a hybrid system like i7-13700H, valid values are 0-19.
  */
 using CpuId = std::uint32_t;
 
@@ -33,10 +27,6 @@ inline constexpr CpuId kInvalidCpuId = std::numeric_limits<CpuId>::max();
 
 /**
  *  Classification of CPU core types on Intel hybrid architectures.
- *
- *  Intel Alder Lake and later processors feature heterogeneous cores:
- *  - P-cores (Performance): High IPC, wide execution, SMT capable
- *  - E-cores (Efficiency): Lower power, narrower execution, no SMT
  */
 enum class CoreType : std::uint8_t
 {

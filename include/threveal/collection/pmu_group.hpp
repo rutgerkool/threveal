@@ -3,9 +3,6 @@
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
  *  Wrapper for grouped Linux perf_event hardware performance counters.
- *
- *  Provides atomic reading of multiple PMU counters using perf_event groups.
- *  This enables accurate correlation between metrics like IPC and cache misses.
  */
 
 #ifndef THREVEAL_COLLECTION_PMU_GROUP_HPP_

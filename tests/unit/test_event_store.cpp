@@ -204,7 +204,7 @@ TEST_CASE("EventStore time range query uses binary search efficiently", "[analys
 
     SECTION("range query returns correct results regardless of insertion order")
     {
-        // Query middle range - should find 3000, 5000, 7000
+        // Query middle range, should find 3000, 5000, 7000
         auto result = store.migrationsInRange(2500, 7500);
         REQUIRE(result.size() == 3);
         REQUIRE(result[0].timestamp_ns == 3000);
@@ -358,7 +358,7 @@ TEST_CASE("EventStore PMU correlation with multiple threads", "[analysis][EventS
 
     SECTION("pmuBeforeMigration finds correct thread's sample")
     {
-        // Migration at 2800 for thread 42 - should find sample at 2000, not 2500 (thread 43)
+        // Migration at 2800 for thread 42 , should find sample at 2000
         auto migration = makeMigration(2800, 42, 0, 1);
         auto result = store.pmuBeforeMigration(migration);
         REQUIRE(result.has_value());
@@ -368,7 +368,7 @@ TEST_CASE("EventStore PMU correlation with multiple threads", "[analysis][EventS
 
     SECTION("pmuAfterMigration finds correct thread's sample")
     {
-        // Migration at 2200 for thread 42 - should find sample at 3000, not 2500 (thread 43)
+        // Migration at 2200 for thread 42, should find sample at 3000
         auto migration = makeMigration(2200, 42, 0, 1);
         auto result = store.pmuAfterMigration(migration);
         REQUIRE(result.has_value());

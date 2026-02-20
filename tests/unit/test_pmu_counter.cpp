@@ -80,6 +80,7 @@ TEST_CASE("PmuCounter invalid target", "[collection][PmuCounter]")
     auto counter = PmuCounter::create(PmuEventType::kCycles, 999999999);
 
     REQUIRE_FALSE(counter.has_value());
+
     // Should get either permission denied or invalid target depending on check order
     REQUIRE((counter.error() == PmuError::kInvalidTarget ||
              counter.error() == PmuError::kPermissionDenied));
@@ -156,7 +157,6 @@ TEST_CASE("PmuCounter read returns value", "[collection][PmuCounter]")
     auto counter = PmuCounter::create(PmuEventType::kCycles);
     REQUIRE(counter.has_value());
 
-    // Enable counter
     auto enable_result = counter->enable();
     REQUIRE(enable_result.has_value());
 
@@ -205,6 +205,7 @@ TEST_CASE("PmuCounter all event types can be created", "[collection][PmuCounter]
     SECTION("LLC loads")
     {
         auto counter = PmuCounter::create(PmuEventType::kLlcLoads);
+
         // LLC events may not be supported on all hardware
         if (!counter.has_value())
         {
@@ -215,7 +216,7 @@ TEST_CASE("PmuCounter all event types can be created", "[collection][PmuCounter]
     SECTION("LLC load misses")
     {
         auto counter = PmuCounter::create(PmuEventType::kLlcLoadMisses);
-        // LLC events may not be supported on all hardware
+
         if (!counter.has_value())
         {
             REQUIRE(counter.error() == PmuError::kEventNotSupported);

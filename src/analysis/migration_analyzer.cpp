@@ -142,7 +142,6 @@ auto MigrationAnalyzer::calculateConfidence(std::uint64_t gap_before_ns,
                                             std::uint64_t gap_after_ns) const noexcept -> double
 {
     // Use the larger of the two gaps as the dominant uncertainty factor.
-    // A migration bracketed tightly by samples is more trustworthy.
     auto max_gap = std::max(gap_before_ns, gap_after_ns);
 
     if (max_gap >= max_sample_gap_ns_)
@@ -151,9 +150,6 @@ auto MigrationAnalyzer::calculateConfidence(std::uint64_t gap_before_ns,
     }
 
     // Exponential decay: confidence = exp(-3 * gap / max_gap)
-    // At gap=0: confidence ≈ 1.0
-    // At gap=max/3: confidence ≈ 0.37
-    // At gap=max: confidence ≈ 0.05 (essentially zero)
     constexpr double kDecayRate = 3.0;
     double normalized_gap = static_cast<double>(max_gap) / static_cast<double>(max_sample_gap_ns_);
 

@@ -124,8 +124,7 @@ TEST_CASE("parseCpuList parses mixed format", "[topology][parseCpuList]")
 
     SECTION("typical hybrid CPU format - i7-13700H style")
     {
-        // P-cores: 0-11 (6 cores, 12 threads with SMT)
-        // E-cores: 12-19 (8 cores, 8 threads)
+        // P-cores: 0-11, E-cores: 12-19
         auto p_cores = parseCpuList("0-11");
         REQUIRE(p_cores.has_value());
         REQUIRE(p_cores->size() == 12);
@@ -140,7 +139,6 @@ TEST_CASE("parseCpuList parses mixed format", "[topology][parseCpuList]")
         auto result = parseCpuList("0-2,5,8-10,15");
         REQUIRE(result.has_value());
         REQUIRE(result->size() == 8);
-        // 0, 1, 2, 5, 8, 9, 10, 15
         REQUIRE((*result)[0] == 0);
         REQUIRE((*result)[2] == 2);
         REQUIRE((*result)[3] == 5);
@@ -344,7 +342,6 @@ TEST_CASE("TopologyMap handles non-hybrid configurations", "[topology][TopologyM
 
 TEST_CASE("TopologyMap handles realistic i7-13700H topology", "[topology][TopologyMap]")
 {
-    // i7-13700H: 6 P-cores (12 threads) + 8 E-cores (8 threads) = 20 threads
     std::vector<CpuId> p_cores = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     std::vector<CpuId> e_cores = {12, 13, 14, 15, 16, 17, 18, 19};
 

@@ -170,7 +170,7 @@ auto MigrationTracker::ringBufferCallback(void* ctx, void* data, std::size_t siz
 {
     if (size < sizeof(migration_event))
     {
-        return 0;  // Skip malformed event
+        return 0;
     }
 
     auto* tracker = static_cast<MigrationTracker*>(ctx);
@@ -196,7 +196,7 @@ auto MigrationTracker::ringBufferCallback(void* ctx, void* data, std::size_t siz
     tracker->callback_(event);
     tracker->event_count_.fetch_add(1, std::memory_order_relaxed);
 
-    return 0;  // Continue processing
+    return 0;
 }
 
 }  // namespace threveal::collection

@@ -262,7 +262,7 @@ TEST_CASE("PmuSampler collects samples", "[collection][PmuSampler]")
 
     sampler->stop();
 
-    // Should have collected some samples (50ms / 2ms = ~25 samples)
+    // Should have collected some samples
     REQUIRE(collector.count() > 0);
     REQUIRE(sampler->sampleCount() == collector.count());
 
@@ -392,8 +392,6 @@ TEST_CASE("PmuSampler destructor stops sampling", "[collection][PmuSampler]")
 
         // Let it collect a few samples
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
-
-        // Destructor should stop cleanly
     }
 
     // If we get here without hanging, the destructor worked correctly
@@ -420,6 +418,5 @@ TEST_CASE("PmuSampler targetTid returns configured TID", "[collection][PmuSample
         SKIP("PMU group creation failed");
     }
 
-    // TID 0 means "self" - the actual TID should still be 0 in the sampler
     REQUIRE(sampler->targetTid() == 0);
 }

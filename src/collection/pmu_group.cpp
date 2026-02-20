@@ -112,22 +112,26 @@ auto errnoToPmuError(int err) -> core::PmuError
     {
         case EACCES:
         case EPERM:
+
             // Need CAP_PERFMON or perf_event_paranoid <= 1
             return core::PmuError::kPermissionDenied;
 
         case ENOENT:
         case ENODEV:
         case EOPNOTSUPP:
+
             // Event not available on this CPU/kernel
             return core::PmuError::kEventNotSupported;
 
         case ESRCH:
         case EINVAL:
+
             // Invalid PID or parameter combination
             return core::PmuError::kInvalidTarget;
 
         case EMFILE:
         case ENFILE:
+
             // Too many fds or hardware counters exhausted
             return core::PmuError::kTooManyEvents;
 

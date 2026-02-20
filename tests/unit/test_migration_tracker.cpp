@@ -119,7 +119,7 @@ TEST_CASE("MigrationTracker start and stop", "[collection][MigrationTracker]")
     {
         REQUIRE(tracker->start().has_value());
         tracker->stop();
-        tracker->stop();  // Should not crash
+        tracker->stop();
         REQUIRE_FALSE(tracker->isRunning());
     }
 
@@ -215,9 +215,8 @@ TEST_CASE("MigrationTracker poll returns without error", "[collection][Migration
 
     REQUIRE(tracker->start().has_value());
 
-    // Poll with short timeout - may or may not capture events
     int result = tracker->poll(std::chrono::milliseconds(10));
-    REQUIRE(result >= 0);  // Should not error
+    REQUIRE(result >= 0);
 
     tracker->stop();
 }

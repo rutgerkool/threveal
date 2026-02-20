@@ -3,9 +3,6 @@
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
  *  Event data structures for migration tracking and PMU sampling.
- *
- *  Defines the core event types used throughout Threveal for representing
- *  scheduler migration events and hardware performance counter samples.
  */
 
 #ifndef THREVEAL_CORE_EVENTS_HPP_
@@ -26,15 +23,11 @@ class TopologyMap;
 
 /**
  *  Maximum length of a process/thread command name.
- *
- *  Linux kernel limits comm to 16 bytes including null terminator.
  */
 inline constexpr std::size_t kMaxCommLength = 16;
 
 /**
  *  Classification of migration events by source and destination core types.
- *
- *  Used to categorize scheduler migrations and analyze their performance impact.
  */
 enum class MigrationType : std::uint8_t
 {
@@ -90,9 +83,6 @@ enum class MigrationType : std::uint8_t
 
 /**
  *  Represents a scheduler migration event captured from the kernel.
- *
- *  This structure mirrors the data captured by the eBPF program attached
- *  to the sched:sched_migrate_task tracepoint.
  */
 struct MigrationEvent
 {
@@ -129,8 +119,6 @@ struct MigrationEvent
     /**
      *  Returns the command name as a string view.
      *
-     *  The returned view is valid only while this MigrationEvent exists.
-     *
      *  @return     A string view of the command name (null-terminated).
      */
     [[nodiscard]] auto commAsStringView() const noexcept -> std::string_view
@@ -143,9 +131,6 @@ struct MigrationEvent
 
 /**
  *  Represents a hardware performance counter sample.
- *
- *  PMU samples are collected periodically and correlated with migration
- *  events to measure the performance impact of core migrations.
  */
 struct PmuSample
 {
@@ -220,9 +205,6 @@ struct PmuSample
 
 /**
  *  Classifies a migration event by determining source and destination core types.
- *
- *  Uses the provided TopologyMap to look up core types for the source and
- *  destination CPUs and returns the appropriate MigrationType.
  *
  *  @param      event     The migration event to classify.
  *  @param      topology  The topology map for core type lookups.

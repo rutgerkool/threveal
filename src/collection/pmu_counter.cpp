@@ -29,9 +29,6 @@ namespace
 /**
  *  Wrapper for the perf_event_open syscall.
  *
- *  glibc does not provide a wrapper for perf_event_open(), so we must invoke
- *  the syscall directly. This is the standard approach used by perf tools.
- *
  *  @param      attr      Pointer to perf_event_attr configuration structure.
  *  @param      pid       Process/thread ID to monitor (-1 for calling thread).
  *  @param      cpu       CPU to monitor (-1 for any CPU the thread runs on).
@@ -48,11 +45,6 @@ auto perfEventOpen(perf_event_attr* attr, pid_t pid, int cpu, int group_fd, unsi
 /**
  *  Configures a perf_event_attr structure for a hardware event.
  *
- *  Creates an attribute structure with common settings:
- *  - disabled=1: Counter starts disabled, must call enable() explicitly
- *  - exclude_kernel=1: Only count user-space events (avoids CAP_SYS_ADMIN)
- *  - exclude_hv=1: Exclude hypervisor events
- *
  *  @param      config  The PERF_COUNT_HW_* constant for the desired event.
  *  @return     Configured perf_event_attr structure ready for perf_event_open().
  */
@@ -65,8 +57,12 @@ auto makeHardwareEventAttr(std::uint64_t config) -> perf_event_attr
     std::memset(&attr, 0, sizeof(attr));
 
     attr.type = PERF_TYPE_HARDWARE;
-    attr.size = sizeof(attr);  // Required for kernel version compatibility
-    attr.config = config;      // The specific hardware event (cycles, instructions, etc.)
+
+    // Required for kernel version compatibility
+    attr.size = sizeof(attr);
+
+    // The specific hardware event (cycles, instructions, etc.)
+    attr.config = config;
 
     // Start disabled so caller can set up multiple counters before enabling
     attr.disabled = 1;
@@ -81,11 +77,6 @@ auto makeHardwareEventAttr(std::uint64_t config) -> perf_event_attr
 
 /**
  *  Configures a perf_event_attr structure for a cache event.
- *
- *  Cache events use a composite config value encoding three fields:
- *  - bits 0-7:   cache ID (L1D, L1I, LL, DTLB, ITLB, BPU, NODE)
- *  - bits 8-15:  operation (READ, WRITE, PREFETCH)
- *  - bits 16-23: result (ACCESS, MISS)
  *
  *  @param      cache_id   The cache level (e.g., PERF_COUNT_HW_CACHE_LL).
  *  @param      op_id      The operation (e.g., PERF_COUNT_HW_CACHE_OP_READ).
@@ -102,7 +93,6 @@ auto makeCacheEventAttr(std::uint64_t cache_id, std::uint64_t op_id, std::uint64
     attr.size = sizeof(attr);
 
     // Encode cache_id, operation, and result into the config field.
-    // Example: LLC read misses = LL | (READ << 8) | (MISS << 16)
     attr.config = cache_id | (op_id << 8) | (result_id << 16);
 
     attr.disabled = 1;
@@ -115,9 +105,6 @@ auto makeCacheEventAttr(std::uint64_t cache_id, std::uint64_t op_id, std::uint64
 /**
  *  Creates a perf_event_attr for the given PmuEventType.
  *
- *  Maps our PmuEventType enum to the appropriate perf_event configuration.
- *  Hardware events use PERF_TYPE_HARDWARE, cache events use PERF_TYPE_HW_CACHE.
- *
  *  @param      event  The PMU event type to configure.
  *  @return     Configured perf_event_attr structure for the requested event.
  */
@@ -126,24 +113,29 @@ auto makeEventAttr(PmuEventType event) -> perf_event_attr
     switch (event)
     {
         case PmuEventType::kCycles:
-            // Total CPU cycles elapsed (affected by frequency scaling)
+
+            // Total CPU cycles elapsed
             return makeHardwareEventAttr(PERF_COUNT_HW_CPU_CYCLES);
 
         case PmuEventType::kInstructions:
-            // Retired instructions (completed, not speculative)
+
+            // Retired instructions
             return makeHardwareEventAttr(PERF_COUNT_HW_INSTRUCTIONS);
 
         case PmuEventType::kBranchMisses:
+
             // Branch predictions that were incorrect
             return makeHardwareEventAttr(PERF_COUNT_HW_BRANCH_MISSES);
 
         case PmuEventType::kLlcLoads:
+
             // Last-level cache read accesses (hits + misses)
             return makeCacheEventAttr(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
                                       PERF_COUNT_HW_CACHE_RESULT_ACCESS);
 
         case PmuEventType::kLlcLoadMisses:
-            // Last-level cache read misses (went to memory)
+
+            // Last-level cache read misses
             return makeCacheEventAttr(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
                                       PERF_COUNT_HW_CACHE_RESULT_MISS);
     }
@@ -164,26 +156,28 @@ auto errnoToPmuError(int err) -> core::PmuError
     {
         case EACCES:
         case EPERM:
+
             // User lacks CAP_PERFMON capability or perf_event_paranoid is too high.
-            // Fix: run as root, grant CAP_PERFMON, or set perf_event_paranoid <= 1
             return core::PmuError::kPermissionDenied;
 
         case ENOENT:
         case ENODEV:
         case EOPNOTSUPP:
+
             // The requested event is not available on this CPU or kernel.
             // This can happen with cache events on some microarchitectures.
             return core::PmuError::kEventNotSupported;
 
         case ESRCH:
         case EINVAL:
+
             // Invalid PID/TID specified, or invalid combination of parameters
             return core::PmuError::kInvalidTarget;
 
         case EMFILE:
         case ENFILE:
+
             // Too many open file descriptors or PMU hardware counters exhausted.
-            // Most CPUs only have 4-8 programmable counters.
             return core::PmuError::kTooManyEvents;
 
         default:
@@ -232,12 +226,7 @@ auto PmuCounter::create(PmuEventType event, pid_t tid, int cpu)
 {
     auto attr = makeEventAttr(event);
 
-    // Open the perf_event file descriptor:
-    // - tid=0: monitor the calling thread (note: -1 means "all processes" which
-    //          requires cpu >= 0, so we use 0 for "self")
-    // - cpu=-1: monitor on any CPU the thread runs on
-    // - group_fd=-1: not part of an event group (standalone counter)
-    // - flags=0: no special flags
+    // Open the perf_event file descriptor
     pid_t effective_tid = (tid == -1) ? 0 : tid;
 
     int fd = perfEventOpen(&attr, effective_tid, cpu, -1, 0);

@@ -22,7 +22,6 @@ namespace threveal::analysis
 
 void EventStore::addMigration(core::MigrationEvent event)
 {
-    // Maintain sorted order by timestamp for efficient time-range queries.
     // We use lower_bound to find the first element with timestamp >= event's timestamp.
     auto insertion_point = std::ranges::lower_bound(migrations_, event.timestamp_ns, {},
                                                     [](const core::MigrationEvent& existing)
@@ -35,8 +34,8 @@ void EventStore::addMigration(core::MigrationEvent event)
 
 void EventStore::addPmuSample(core::PmuSample sample)
 {
-    // Maintain sorted order by timestamp for efficient correlation queries.
-    // This enables binary search when finding samples before/after migration events.
+    // Maintain sorted order by timestamp to enable binary search when finding samples before/after
+    // migration events.
     auto insertion_point = std::ranges::lower_bound(pmu_samples_, sample.timestamp_ns, {},
                                                     [](const core::PmuSample& existing)
                                                     {
@@ -61,7 +60,6 @@ auto EventStore::migrationsForThread(std::uint32_t tid) const -> std::vector<cor
     std::vector<core::MigrationEvent> result;
 
     // Linear scan required since we're filtering by tid, not timestamp.
-    // Migrations are sorted by timestamp, not by thread ID.
     for (const auto& migration : migrations_)
     {
         if (migration.tid == tid)

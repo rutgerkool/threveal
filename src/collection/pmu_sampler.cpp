@@ -244,7 +244,7 @@ auto PmuSampler::collectSample() -> bool
     auto reading = group_.read();
     if (!reading)
     {
-        // Counter read failed - skip this sample
+        // Counter read failed, skip this sample
         return false;
     }
 

@@ -3,9 +3,6 @@
  *  @author     Rutger Kool <rutgerkool@gmail.com>
  *
  *  CPU topology detection for Intel hybrid architectures.
- *
- *  Provides functionality to detect P-cores and E-cores on Intel Alder Lake
- *  and Raptor Lake processors by parsing sysfs entries.
  */
 
 #ifndef THREVEAL_CORE_TOPOLOGY_HPP_
@@ -25,20 +22,12 @@ namespace threveal::core
 
 /**
  *  Maps logical CPU IDs to their core type classification.
- *
- *  TopologyMap provides efficient lookup of whether a given CPU ID corresponds
- *  to a Performance core (P-core) or Efficiency core (E-core) on Intel hybrid
- *  architectures. It is typically constructed by parsing sysfs entries at
- *  program startup.
  */
 class TopologyMap
 {
   public:
     /**
      *  Constructs an empty TopologyMap.
-     *
-     *  An empty map will return kUnknown for all CPU IDs. Use loadFromSysfs()
-     *  to construct a properly initialized map.
      */
     TopologyMap() = default;
 
@@ -52,9 +41,6 @@ class TopologyMap
 
     /**
      *  Retrieves the core type for a given CPU ID.
-     *
-     *  Queries the internal topology map to determine whether the specified
-     *  CPU is a Performance core (P-core) or Efficiency core (E-core).
      *
      *  @param      cpu_id  The logical CPU identifier (0-based).
      *  @return     The core type on success, or TopologyError::kInvalidCpuId
@@ -86,17 +72,12 @@ class TopologyMap
     /**
      *  Checks if the topology represents a hybrid CPU.
      *
-     *  A hybrid CPU has both P-cores and E-cores.
-     *
      *  @return     True if both P-cores and E-cores are present.
      */
     [[nodiscard]] auto isHybrid() const noexcept -> bool;
 
     /**
      *  Checks if two CPUs are SMT (hyperthreading) siblings.
-     *
-     *  SMT siblings share the same physical core but have different logical
-     *  CPU IDs. On Intel hybrid CPUs, only P-cores support SMT.
      *
      *  @param      cpu_a  First logical CPU identifier.
      *  @param      cpu_b  Second logical CPU identifier.
@@ -108,9 +89,6 @@ class TopologyMap
     /**
      *  Loads CPU topology from sysfs.
      *
-     *  Parses /sys/devices/cpu_core/cpus and /sys/devices/cpu_atom/cpus
-     *  to determine which CPUs are P-cores and E-cores.
-     *
      *  @return     A populated TopologyMap on success, or a TopologyError
      *              indicating why detection failed.
      */
@@ -119,17 +97,11 @@ class TopologyMap
   private:
     /**
      *  Builds the CPU ID to CoreType lookup table.
-     *
-     *  Called after p_cores_ and e_cores_ are populated to create
-     *  an O(1) lookup structure.
      */
     void buildLookupTable();
 
     /**
      *  Loads SMT sibling data from sysfs.
-     *
-     *  Reads /sys/devices/system/cpu/cpu<N>/topology/core_id for each CPU
-     *  to determine which CPUs share a physical core.
      */
     void loadSmtData();
 
@@ -142,12 +114,6 @@ class TopologyMap
 /**
  *  Parses a CPU list string in sysfs format.
  *
- *  Sysfs represents CPU lists in a compact format using ranges and
- *  comma-separated values. For example:
- *  - "0-5" represents CPUs 0, 1, 2, 3, 4, 5
- *  - "0-5,12-19" represents CPUs 0-5 and 12-19
- *  - "0,2,4" represents CPUs 0, 2, 4
- *
  *  @param      content  The CPU list string to parse (e.g., "0-5,12-19").
  *  @return     A vector of CPU IDs on success, or TopologyError::kParseError
  *              if the format is invalid.
@@ -157,10 +123,6 @@ class TopologyMap
 
 /**
  *  Parses a core_type sysfs string to determine the core type.
- *
- *  The core_type file (Linux 5.18+) contains strings like "Core" or "Atom"
- *  to indicate P-cores and E-cores respectively. Older kernel versions
- *  may report "intel_core" or "intel_atom".
  *
  *  @param      content  The core_type string to parse (e.g., "Core", "Atom").
  *  @return     The CoreType on success, or TopologyError::kParseError
