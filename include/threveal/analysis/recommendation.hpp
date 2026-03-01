@@ -9,6 +9,7 @@
 #define THREVEAL_ANALYSIS_RECOMMENDATION_HPP_
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 namespace threveal::analysis
@@ -68,6 +69,47 @@ enum class AffinityRecommendation : std::uint8_t
     }
     return "Invalid";
 }
+
+/**
+ *  Recommendation result for a single thread.
+ */
+struct ThreadRecommendation
+{
+    /**
+     *  Thread ID this recommendation applies to.
+     */
+    std::uint32_t tid;
+
+    /**
+     *  Process ID of the thread's owning process.
+     */
+    std::uint32_t pid;
+
+    /**
+     *  Command name of the thread.
+     */
+    std::string comm;
+
+    /**
+     *  The recommended action for this thread.
+     */
+    AffinityRecommendation recommendation;
+
+    /**
+     *  Human-readable explanation of why this recommendation was made.
+     */
+    std::string explanation;
+
+    /**
+     *  Observed migration rate in migrations per second.
+     */
+    double migration_rate_per_second;
+
+    /**
+     *  Fraction of total migrations that are P→E (0.0 to 1.0).
+     */
+    double p_to_e_fraction;
+};
 
 }  // namespace threveal::analysis
 
