@@ -8,9 +8,12 @@
 #ifndef THREVEAL_ANALYSIS_RECOMMENDATION_HPP_
 #define THREVEAL_ANALYSIS_RECOMMENDATION_HPP_
 
+#include "threveal/analysis/migration_analyzer.hpp"
+
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace threveal::analysis
 {
@@ -109,6 +112,42 @@ struct ThreadRecommendation
      *  Fraction of total migrations that are P→E (0.0 to 1.0).
      */
     double p_to_e_fraction;
+};
+
+/**
+ *  Generates per-thread affinity recommendations from migration statistics.
+ */
+class RecommendationEngine
+{
+  public:
+    static constexpr std::uint32_t kDefaultMinMigrations = 5;
+    static constexpr double kDefaultIpcLossThreshold = -0.10;
+    static constexpr double kDefaultPToEFractionThreshold = 0.30;
+    static constexpr double kDefaultHighMigrationRate = 100.0;
+    static constexpr double kDefaultECoreMajorityThreshold = 0.50;
+    static constexpr double kDefaultSignificantIpcGain = 0.10;
+
+    explicit RecommendationEngine(std::uint64_t profiling_duration_ns) noexcept;
+
+    [[nodiscard]] auto analyze(const std::vector<ThreadStatistics>& thread_stats) const
+        -> std::vector<ThreadRecommendation>;
+
+    void setMinMigrations(std::uint32_t min) noexcept;
+    void setIpcLossThreshold(double threshold) noexcept;
+    void setHighMigrationRate(double rate_per_sec) noexcept;
+
+  private:
+    [[nodiscard]] auto recommend(const ThreadStatistics& stats) const -> ThreadRecommendation;
+    [[nodiscard]] auto computeMigrationRate(std::uint32_t total_migrations) const noexcept
+        -> double;
+
+    std::uint64_t profiling_duration_ns_;
+    std::uint32_t min_migrations_{kDefaultMinMigrations};
+    double ipc_loss_threshold_{kDefaultIpcLossThreshold};
+    double p_to_e_fraction_threshold_{kDefaultPToEFractionThreshold};
+    double high_migration_rate_{kDefaultHighMigrationRate};
+    double e_core_majority_threshold_{kDefaultECoreMajorityThreshold};
+    double significant_ipc_gain_{kDefaultSignificantIpcGain};
 };
 
 }  // namespace threveal::analysis
