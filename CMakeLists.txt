@@ -105,6 +105,7 @@ add_library(threveal_core STATIC
   src/core/events.cpp
   src/analysis/event_store.cpp
   src/analysis/migration_analyzer.cpp
+  src/analysis/recommendation.cpp
   src/collection/pmu_counter.cpp
   src/collection/pmu_group.cpp
   src/collection/pmu_sampler.cpp
@@ -203,6 +204,14 @@ if(THREVEAL_ENABLE_TESTING)
     Catch2::Catch2WithMain
   )
 
+  add_executable(test_recommendation
+    tests/unit/test_recommendation.cpp
+  )
+  target_link_libraries(test_recommendation PRIVATE
+    threveal_core
+    Catch2::Catch2WithMain
+  )
+
   add_test(NAME topology_tests COMMAND test_topology)
   add_test(NAME events_tests COMMAND test_events)
   add_test(NAME event_store_tests COMMAND test_event_store)
@@ -211,6 +220,7 @@ if(THREVEAL_ENABLE_TESTING)
   add_test(NAME pmu_group_tests COMMAND test_pmu_group)
   add_test(NAME pmu_sampler_tests COMMAND test_pmu_sampler)
   add_test(NAME migration_analyzer_tests COMMAND test_migration_analyzer)
+  add_test(NAME recommendation_tests COMMAND test_recommendation)
 
   if(THREVEAL_ENABLE_BPF)
     add_executable(test_ebpf_loader
@@ -235,7 +245,7 @@ if(THREVEAL_ENABLE_TESTING)
 
   # Configure AddressSanitizer to work correctly with ctest
   if(THREVEAL_ENABLE_SANITIZERS)
-    set_tests_properties(topology_tests events_tests event_store_tests errors_tests pmu_counter_tests pmu_group_tests pmu_sampler_tests migration_analyzer_tests PROPERTIES
+    set_tests_properties(topology_tests events_tests event_store_tests errors_tests pmu_counter_tests pmu_group_tests pmu_sampler_tests migration_analyzer_tests recommendation_tests PROPERTIES
       ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0"
     )
   endif()
