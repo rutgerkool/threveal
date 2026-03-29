@@ -53,3 +53,30 @@ TEST_CASE("RecommendationEngine with empty input returns empty output",
     auto results = engine.analyze({});
     REQUIRE(results.empty());
 }
+
+TEST_CASE("RecommendationEngine returns kNone for thread with too few migrations",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // 4 migrations < default minimum of 5
+    auto stats = makeStats(42, 4, 2, 0, 2, 0, -0.5);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results.size() == 1);
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kNone);
+    REQUIRE_FALSE(results[0].explanation.empty());
+}
+
+TEST_CASE("RecommendationEngine uses configurable minimum migrations",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+    engine.setMinMigrations(10);
+
+    // 8 migrations < custom minimum of 10
+    auto stats = makeStats(42, 8, 5, 0, 3, 0, -0.5);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kNone);
+}
