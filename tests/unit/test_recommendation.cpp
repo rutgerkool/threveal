@@ -80,3 +80,59 @@ TEST_CASE("RecommendationEngine uses configurable minimum migrations",
 
     REQUIRE(results[0].recommendation == AffinityRecommendation::kNone);
 }
+
+TEST_CASE("RecommendationEngine recommends kPinToPCores for high P→E fraction with IPC loss",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // 50% P to E migrations with -0.5 IPC loss
+    auto stats = makeStats(42, 10, 5, 0, 5, 0, -0.5);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToPCores);
+    REQUIRE_FALSE(results[0].explanation.empty());
+    REQUIRE(results[0].p_to_e_fraction == Catch::Approx(0.5));
+}
+
+TEST_CASE("RecommendationEngine does NOT recommend kPinToPCores when IPC loss is small",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // High P to E fraction but low IPC loss
+    auto stats = makeStats(42, 10, 5, 0, 5, 0, -0.05);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation != AffinityRecommendation::kPinToPCores);
+}
+
+TEST_CASE("RecommendationEngine does NOT recommend kPinToPCores when P→E fraction is low",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // 10% P to E migrations but high IPC loss
+    auto stats = makeStats(42, 10, 1, 0, 9, 0, -0.5);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation != AffinityRecommendation::kPinToPCores);
+}
+
+TEST_CASE("RecommendationEngine respects custom IPC loss threshold",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+    engine.setIpcLossThreshold(-0.30);
+
+    auto stats = makeStats(42, 10, 5, 0, 5, 0, -0.20);
+
+    // -0.20 is above the -0.30 threshold, so should NOT recommend P-core pinning
+    auto results = engine.analyze({stats});
+    REQUIRE(results[0].recommendation != AffinityRecommendation::kPinToPCores);
+
+    // -0.40 is below the -0.30 threshold, so should recommend P-core pinning
+    stats.avg_ipc_loss_on_p_to_e = -0.40;
+    results = engine.analyze({stats});
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToPCores);
+}
