@@ -136,3 +136,56 @@ TEST_CASE("RecommendationEngine respects custom IPC loss threshold",
     results = engine.analyze({stats});
     REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToPCores);
 }
+
+TEST_CASE("RecommendationEngine recommends kReduceMigrations for very high migration rate",
+          "[analysis][RecommendationEngine]")
+{
+    // 200 migrations in 1 second > default 100 threshold
+    RecommendationEngine engine(kOneSecondNs);
+
+    // Use p_to_p only to avoid triggering rule 1
+    auto stats = makeStats(42, 200, 0, 0, 200, 0);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kReduceMigrations);
+    REQUIRE(results[0].migration_rate_per_second == Catch::Approx(200.0));
+}
+
+TEST_CASE("RecommendationEngine respects custom high migration rate threshold",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+    engine.setHighMigrationRate(50.0);
+
+    // 60 migrations per second > custom 50 threshold
+    auto stats = makeStats(42, 60, 0, 0, 60, 0);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kReduceMigrations);
+}
+
+TEST_CASE("RecommendationEngine computes migration rate correctly",
+          "[analysis][RecommendationEngine]")
+{
+    // 500ms window, 50 migrations → 100 migrations per second exactly on the boundary
+    constexpr std::uint64_t kHalfSecondNs = 500'000'000ULL;
+    RecommendationEngine engine(kHalfSecondNs);
+
+    auto stats = makeStats(42, 50, 0, 0, 50, 0);
+    auto results = engine.analyze({stats});
+
+    // 50 / 0.5 sec = 100 migrations per second, so right at the threshold, not above
+    REQUIRE(results[0].migration_rate_per_second == Catch::Approx(100.0));
+}
+
+TEST_CASE("RecommendationEngine handles zero profiling duration without crashing",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(0);
+
+    auto stats = makeStats(42, 10, 0, 0, 10, 0);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].migration_rate_per_second == Catch::Approx(0.0));
+    REQUIRE_FALSE(results[0].explanation.empty());
+}
