@@ -189,3 +189,40 @@ TEST_CASE("RecommendationEngine handles zero profiling duration without crashing
     REQUIRE(results[0].migration_rate_per_second == Catch::Approx(0.0));
     REQUIRE_FALSE(results[0].explanation.empty());
 }
+
+TEST_CASE("RecommendationEngine recommends kPinToECores when thread is mostly on E-cores",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // Thread keeps getting pulled to P-cores (e_to_p=2) but gains nothing from it
+    auto stats = makeStats(42, 10, 2, 2, 0, 6, 0.0, 0.02);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToECores);
+    REQUIRE_FALSE(results[0].explanation.empty());
+}
+
+TEST_CASE("RecommendationEngine does NOT recommend kPinToECores when P-cores give significant gain",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // High E-core fraction but meaningful IPC gain on E to P (0.5 > threshold 0.10)
+    auto stats = makeStats(42, 10, 2, 0, 0, 8, 0.0, 0.5);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation != AffinityRecommendation::kPinToECores);
+}
+
+TEST_CASE("RecommendationEngine does NOT recommend kPinToECores when E-core fraction is low",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // Only 20% E-core activity (below 50% threshold)
+    auto stats = makeStats(42, 10, 2, 0, 8, 0, 0.0, 0.0);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation != AffinityRecommendation::kPinToECores);
+}
