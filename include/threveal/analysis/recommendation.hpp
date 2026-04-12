@@ -29,7 +29,7 @@ enum class AffinityRecommendation : std::uint8_t
     kNone = 0,
 
     /**
-     *  Thread repeatedly migrates P→E with measurable IPC loss.
+     *  Thread repeatedly migrates P to E with measurable IPC loss.
      */
     kPinToPCores = 1,
 
@@ -109,7 +109,7 @@ struct ThreadRecommendation
     double migration_rate_per_second;
 
     /**
-     *  Fraction of total migrations that are P→E (0.0 to 1.0).
+     *  Fraction of total migrations that are P to E (0.0 to 1.0).
      */
     double p_to_e_fraction;
 };

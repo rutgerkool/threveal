@@ -143,7 +143,7 @@ TEST_CASE("RecommendationEngine recommends kReduceMigrations for very high migra
     // 200 migrations in 1 second > default 100 threshold
     RecommendationEngine engine(kOneSecondNs);
 
-    // Use p_to_p only to avoid triggering rule 1
+    // Use p_to_p only
     auto stats = makeStats(42, 200, 0, 0, 200, 0);
     auto results = engine.analyze({stats});
 
@@ -167,7 +167,7 @@ TEST_CASE("RecommendationEngine respects custom high migration rate threshold",
 TEST_CASE("RecommendationEngine computes migration rate correctly",
           "[analysis][RecommendationEngine]")
 {
-    // 500ms window, 50 migrations → 100 migrations per second exactly on the boundary
+    // 500ms window, 50 migrations, so 100 migrations per second exactly on the boundary
     constexpr std::uint64_t kHalfSecondNs = 500'000'000ULL;
     RecommendationEngine engine(kHalfSecondNs);
 
@@ -225,4 +225,113 @@ TEST_CASE("RecommendationEngine does NOT recommend kPinToECores when E-core frac
     auto results = engine.analyze({stats});
 
     REQUIRE(results[0].recommendation != AffinityRecommendation::kPinToECores);
+}
+
+TEST_CASE("RecommendationEngine recommends kInvestigateFurther for ambiguous cross-type activity",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    auto stats = makeStats(42, 10, 1, 1, 8, 0, -0.05, 0.05);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kInvestigateFurther);
+    REQUIRE_FALSE(results[0].explanation.empty());
+}
+
+TEST_CASE("RecommendationEngine returns kNone for clean P-only profile",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // All P to P migrations, no cross-type activity, low rate
+    auto stats = makeStats(42, 10, 0, 0, 10, 0);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kNone);
+    REQUIRE_FALSE(results[0].explanation.empty());
+}
+
+TEST_CASE("RecommendationEngine returns kNone for clean E-only profile",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // All E to E migrations, no cross-type activity, low rate
+    auto stats = makeStats(42, 10, 0, 0, 0, 10);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kNone);
+}
+
+TEST_CASE("RecommendationEngine processes multiple threads independently",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    std::vector<ThreadStatistics> stats = {
+
+        // Thread 1: should get kPinToPCores
+        makeStats(1, 10, 5, 0, 5, 0, -0.5),
+
+        // Thread 2: clean P to P profile
+        makeStats(2, 10, 0, 0, 10, 0),
+
+        // Thread 3: too few migrations
+        makeStats(3, 2, 1, 0, 1, 0),
+    };
+
+    auto results = engine.analyze(stats);
+
+    REQUIRE(results.size() == 3);
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToPCores);
+    REQUIRE(results[1].recommendation == AffinityRecommendation::kNone);
+    REQUIRE(results[2].recommendation == AffinityRecommendation::kNone);
+}
+
+TEST_CASE("RecommendationEngine always provides a non-empty explanation",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    std::vector<ThreadStatistics> all_cases = {
+
+        // Insufficient data
+        makeStats(1, 2, 1, 0, 1, 0),
+
+        // kPinToPCores
+        makeStats(2, 10, 5, 0, 5, 0, -0.5),
+
+        // kReduceMigrations
+        makeStats(3, 200, 0, 0, 200, 0),
+
+        // kPinToECores
+        makeStats(4, 10, 2, 2, 0, 6, 0.0, 0.02),
+
+        // kInvestigateFurther
+        makeStats(5, 10, 1, 1, 8, 0, -0.05, 0.05),
+
+        // kNone
+        makeStats(6, 10, 0, 0, 10, 0),
+    };
+
+    auto results = engine.analyze(all_cases);
+
+    for (const auto& r : results)
+    {
+        INFO("tid=" << r.tid << " rec=" << static_cast<int>(r.recommendation));
+        REQUIRE_FALSE(r.explanation.empty());
+    }
+}
+
+TEST_CASE("toString(AffinityRecommendation) returns correct labels",
+          "[analysis][RecommendationEngine]")
+{
+    REQUIRE(threveal::analysis::toString(AffinityRecommendation::kNone) == "None");
+    REQUIRE(threveal::analysis::toString(AffinityRecommendation::kPinToPCores) == "PinToPCores");
+    REQUIRE(threveal::analysis::toString(AffinityRecommendation::kPinToECores) == "PinToECores");
+    REQUIRE(threveal::analysis::toString(AffinityRecommendation::kReduceMigrations) ==
+            "ReduceMigrations");
+    REQUIRE(threveal::analysis::toString(AffinityRecommendation::kInvestigateFurther) ==
+            "InvestigateFurther");
 }

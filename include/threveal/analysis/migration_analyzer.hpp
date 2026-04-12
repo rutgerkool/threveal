@@ -143,16 +143,16 @@ struct ThreadStatistics
     std::uint32_t e_to_e_migrations;
 
     /**
-     *  Average IPC loss observed on P→E migrations.
+     *  Average IPC loss observed on P to E migrations.
      *  Negative values indicate performance degradation.
-     *  Zero if no P→E migrations occurred.
+     *  Zero if no P to E migrations occurred.
      */
     double avg_ipc_loss_on_p_to_e;
 
     /**
-     *  Average IPC gain observed on E→P migrations.
+     *  Average IPC gain observed on E to P migrations.
      *  Positive values indicate performance improvement.
-     *  Zero if no E→P migrations occurred.
+     *  Zero if no E to P migrations occurred.
      */
     double avg_ipc_gain_on_e_to_p;
 
