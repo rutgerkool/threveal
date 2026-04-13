@@ -120,24 +120,89 @@ struct ThreadRecommendation
 class RecommendationEngine
 {
   public:
+    /**
+     *  Minimum number of migrations required before generating a recommendation.
+     */
     static constexpr std::uint32_t kDefaultMinMigrations = 5;
+
+    /**
+     *  IPC loss threshold (negative) for recommending P-core pinning.
+     */
     static constexpr double kDefaultIpcLossThreshold = -0.10;
+
+    /**
+     *  P→E fraction required to trigger the P-core pinning rule.
+     */
     static constexpr double kDefaultPToEFractionThreshold = 0.30;
+
+    /**
+     *  Migration rate (migrations/second) above which reduction is recommended.
+     */
     static constexpr double kDefaultHighMigrationRate = 100.0;
+
+    /**
+     *  E-core occupancy fraction above which E-core pinning is considered.
+     */
     static constexpr double kDefaultECoreMajorityThreshold = 0.50;
+
+    /**
+     *  Minimum IPC gain from E→P that would indicate a thread benefits from P-cores.
+     */
     static constexpr double kDefaultSignificantIpcGain = 0.10;
 
+    /**
+     *  Constructs the engine for a specific profiling window.
+     *
+     *  @param      profiling_duration_ns  Total profiling window in nanoseconds.
+     */
     explicit RecommendationEngine(std::uint64_t profiling_duration_ns) noexcept;
 
+    /**
+     *  Generates per-thread recommendations from a set of thread statistics.
+     *
+     *  @param      thread_stats  Per-thread statistics from MigrationAnalyzer::analyze().
+     *  @return     One recommendation per thread.
+     */
     [[nodiscard]] auto analyze(const std::vector<ThreadStatistics>& thread_stats) const
         -> std::vector<ThreadRecommendation>;
 
+    /**
+     *  Sets the minimum number of migrations required for analysis.
+     *
+     *  @param      min  New minimum migration count.
+     */
     void setMinMigrations(std::uint32_t min) noexcept;
+
+    /**
+     *  Sets the IPC loss threshold for recommending P-core pinning.
+     *
+     *  @param      threshold  Negative IPC delta below which a P→E migration
+     *                          is considered harmful (e.g. −0.10).
+     */
     void setIpcLossThreshold(double threshold) noexcept;
+
+    /**
+     *  Sets the migration rate threshold above which reduction is recommended.
+     *
+     *  @param      rate_per_sec  Migrations per second (e.g. 100.0).
+     */
     void setHighMigrationRate(double rate_per_sec) noexcept;
 
   private:
+    /**
+     *  Generates a recommendation for a single thread.
+     *
+     *  @param      stats  Statistics for the thread to analyse.
+     *  @return     The recommendation with explanation and supporting metrics.
+     */
     [[nodiscard]] auto recommend(const ThreadStatistics& stats) const -> ThreadRecommendation;
+
+    /**
+     *  Computes the migration rate in migrations per second.
+     *
+     *  @param      total_migrations  Number of observed migrations.
+     *  @return     Migrations per second, or 0.0 if the profiling duration is zero.
+     */
     [[nodiscard]] auto computeMigrationRate(std::uint32_t total_migrations) const noexcept
         -> double;
 
