@@ -109,6 +109,7 @@ jobs:
             build/test_pmu_group
             build/test_pmu_sampler
             build/test_migration_analyzer
+            build/test_recommendation
             build/test_ebpf_loader
             build/test_migration_tracker
           retention-days: 7
@@ -152,6 +153,7 @@ jobs:
           chmod +x build/test_pmu_group
           chmod +x build/test_pmu_sampler
           chmod +x build/test_migration_analyzer
+          chmod +x build/test_recommendation
           chmod +x build/test_ebpf_loader
           chmod +x build/test_migration_tracker
 
@@ -165,6 +167,7 @@ jobs:
           ./build/test_pmu_group
           ./build/test_pmu_sampler
           ./build/test_migration_analyzer
+          ./build/test_recommendation
           ./build/test_ebpf_loader
           ./build/test_migration_tracker
 
