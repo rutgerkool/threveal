@@ -23,6 +23,31 @@
 namespace threveal::analysis
 {
 
+namespace
+{
+
+/**
+ *  Builds an impact for a migration that could not be correlated with PMU data.
+ *
+ *  @param      migration  The migration event.
+ *  @param      type       The classified migration type.
+ *  @return     An impact with zero deltas and zero confidence.
+ */
+[[nodiscard]] auto makeUncorrelatedImpact(const core::MigrationEvent& migration,
+                                          core::MigrationType type) -> MigrationImpact
+{
+    return MigrationImpact{
+        .event = migration,
+        .type = type,
+        .ipc_delta = 0.0,
+        .cache_miss_delta = 0.0,
+        .branch_miss_delta = 0.0,
+        .confidence = 0.0,
+    };
+}
+
+}  // namespace
+
 MigrationAnalyzer::MigrationAnalyzer(const EventStore& store,
                                      const core::TopologyMap& topology) noexcept
     : store_(&store), topology_(&topology)
@@ -85,14 +110,7 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
     // If either sample is missing, return a zero-confidence impact
     if (!sample_before || !sample_after)
     {
-        return MigrationImpact{
-            .event = migration,
-            .type = type,
-            .ipc_delta = 0.0,
-            .cache_miss_delta = 0.0,
-            .branch_miss_delta = 0.0,
-            .confidence = 0.0,
-        };
+        return makeUncorrelatedImpact(migration, type);
     }
 
     // Compute time gaps between samples and migration
@@ -102,14 +120,7 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
     // Reject samples that are too far from the migration event
     if (gap_before_ns > max_sample_gap_ns_ || gap_after_ns > max_sample_gap_ns_)
     {
-        return MigrationImpact{
-            .event = migration,
-            .type = type,
-            .ipc_delta = 0.0,
-            .cache_miss_delta = 0.0,
-            .branch_miss_delta = 0.0,
-            .confidence = 0.0,
-        };
+        return makeUncorrelatedImpact(migration, type);
     }
 
     // Compute performance deltas across the migration boundary
