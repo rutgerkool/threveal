@@ -97,6 +97,14 @@ enum class PmuEventType : std::uint8_t
                                  unsigned long flags) -> int;
 
 /**
+ *  Creates a perf_event_attr for the given PmuEventType.
+ *
+ *  @param      event  The PMU event type to configure.
+ *  @return     Configured perf_event_attr structure for the requested event.
+ */
+[[nodiscard]] auto makeEventAttr(PmuEventType event) -> perf_event_attr;
+
+/**
  *  Maps errno values from perf_event_open() to PmuError.
  *
  *  @param      err  The errno value to translate.
