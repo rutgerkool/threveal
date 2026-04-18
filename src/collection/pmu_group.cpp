@@ -7,17 +7,16 @@
 
 #include "threveal/collection/pmu_group.hpp"
 
+#include "threveal/collection/perf_event.hpp"
 #include "threveal/core/errors.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cerrno>
 #include <cstdint>
-#include <cstring>
 #include <expected>
 #include <linux/perf_event.h>
 #include <sys/ioctl.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -26,16 +25,6 @@ namespace threveal::collection
 
 namespace
 {
-
-/**
- *  Wrapper for the perf_event_open syscall.
- */
-auto perfEventOpen(perf_event_attr* attr, pid_t pid, int cpu, int group_fd, unsigned long flags)
-    -> int
-{
-    // glibc doesn't provide a wrapper, so we call the syscall directly
-    return static_cast<int>(syscall(SYS_perf_event_open, attr, pid, cpu, group_fd, flags));
-}
 
 /**
  *  Index constants for the counter array.
@@ -50,94 +39,23 @@ enum CounterIndex : std::uint8_t
 };
 
 /**
- *  Creates a perf_event_attr for hardware events.
+ *  Creates the attributes for the group leader, which reads all members at once.
  */
-auto makeHardwareAttr(std::uint64_t config, bool is_leader) -> perf_event_attr
+auto makeLeaderAttr(PmuEventType event) -> perf_event_attr
 {
-    perf_event_attr attr{};
-
-    // Zero-init required, perf_event_attr has many optional fields
-    std::memset(&attr, 0, sizeof(attr));
-
-    attr.type = PERF_TYPE_HARDWARE;
-    attr.size = sizeof(attr);
-    attr.config = config;
-
-    // Only leader starts disabled
-    attr.disabled = is_leader ? 1 : 0;
-
-    // Exclude kernel/hypervisor to avoid needing CAP_SYS_ADMIN
-    attr.exclude_kernel = 1;
-    attr.exclude_hv = 1;
-
-    // Leader needs GROUP format for atomic multi-counter reads
-    if (is_leader)
-    {
-        attr.read_format = PERF_FORMAT_GROUP;
-    }
-
+    auto attr = makeEventAttr(event);
+    attr.read_format = PERF_FORMAT_GROUP;
     return attr;
 }
 
 /**
- *  Creates a perf_event_attr for cache events.
+ *  Creates the attributes for a group member, which follows the leader's enable state.
  */
-auto makeCacheAttr(std::uint64_t cache_id, std::uint64_t op_id, std::uint64_t result_id)
-    -> perf_event_attr
+auto makeMemberAttr(PmuEventType event) -> perf_event_attr
 {
-    perf_event_attr attr{};
-    std::memset(&attr, 0, sizeof(attr));
-
-    attr.type = PERF_TYPE_HW_CACHE;
-    attr.size = sizeof(attr);
-
-    // Cache events encode three fields: cache level, operation, result
-    attr.config = cache_id | (op_id << 8) | (result_id << 16);
-
-    // Members inherit enabled/disabled state from leader
+    auto attr = makeEventAttr(event);
     attr.disabled = 0;
-
-    attr.exclude_kernel = 1;
-    attr.exclude_hv = 1;
-
     return attr;
-}
-
-/**
- *  Maps errno values from perf_event_open() to PmuError.
- */
-auto errnoToPmuError(int err) -> core::PmuError
-{
-    switch (err)
-    {
-        case EACCES:
-        case EPERM:
-
-            // Need CAP_PERFMON or perf_event_paranoid <= 1
-            return core::PmuError::kPermissionDenied;
-
-        case ENOENT:
-        case ENODEV:
-        case EOPNOTSUPP:
-
-            // Event not available on this CPU/kernel
-            return core::PmuError::kEventNotSupported;
-
-        case ESRCH:
-        case EINVAL:
-
-            // Invalid PID or parameter combination
-            return core::PmuError::kInvalidTarget;
-
-        case EMFILE:
-        case ENFILE:
-
-            // Too many fds or hardware counters exhausted
-            return core::PmuError::kTooManyEvents;
-
-        default:
-            return core::PmuError::kOpenFailed;
-    }
 }
 
 /**
@@ -211,7 +129,7 @@ auto PmuGroup::create(pid_t tid, int cpu) -> std::expected<PmuGroup, core::PmuEr
     };
 
     // Create leader first (group_fd=-1 creates new group)
-    auto cycles_attr = makeHardwareAttr(PERF_COUNT_HW_CPU_CYCLES, true);
+    auto cycles_attr = makeLeaderAttr(PmuEventType::kCycles);
     fds[kCycles] = perfEventOpen(&cycles_attr, tid, cpu, -1, 0);
 
     if (fds[kCycles] < 0)
@@ -223,7 +141,7 @@ auto PmuGroup::create(pid_t tid, int cpu) -> std::expected<PmuGroup, core::PmuEr
     int leader_fd = fds[kCycles];
 
     // Instructions counter for IPC
-    auto instr_attr = makeHardwareAttr(PERF_COUNT_HW_INSTRUCTIONS, false);
+    auto instr_attr = makeMemberAttr(PmuEventType::kInstructions);
     fds[kInstructions] = perfEventOpen(&instr_attr, tid, cpu, leader_fd, 0);
 
     if (fds[kInstructions] < 0)
@@ -234,8 +152,7 @@ auto PmuGroup::create(pid_t tid, int cpu) -> std::expected<PmuGroup, core::PmuEr
     }
 
     // LLC loads (accesses, i.e. hits + misses)
-    auto llc_loads_attr = makeCacheAttr(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
-                                        PERF_COUNT_HW_CACHE_RESULT_ACCESS);
+    auto llc_loads_attr = makeMemberAttr(PmuEventType::kLlcLoads);
     fds[kLlcLoads] = perfEventOpen(&llc_loads_attr, tid, cpu, leader_fd, 0);
 
     if (fds[kLlcLoads] < 0)
@@ -246,8 +163,7 @@ auto PmuGroup::create(pid_t tid, int cpu) -> std::expected<PmuGroup, core::PmuEr
     }
 
     // LLC misses (went to memory)
-    auto llc_misses_attr = makeCacheAttr(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
-                                         PERF_COUNT_HW_CACHE_RESULT_MISS);
+    auto llc_misses_attr = makeMemberAttr(PmuEventType::kLlcLoadMisses);
     fds[kLlcLoadMisses] = perfEventOpen(&llc_misses_attr, tid, cpu, leader_fd, 0);
 
     if (fds[kLlcLoadMisses] < 0)
@@ -258,7 +174,7 @@ auto PmuGroup::create(pid_t tid, int cpu) -> std::expected<PmuGroup, core::PmuEr
     }
 
     // Branch mispredictions
-    auto branch_attr = makeHardwareAttr(PERF_COUNT_HW_BRANCH_MISSES, false);
+    auto branch_attr = makeMemberAttr(PmuEventType::kBranchMisses);
     fds[kBranchMisses] = perfEventOpen(&branch_attr, tid, cpu, leader_fd, 0);
 
     if (fds[kBranchMisses] < 0)
