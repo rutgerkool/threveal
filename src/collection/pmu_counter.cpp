@@ -128,47 +128,6 @@ auto makeEventAttr(PmuEventType event) -> perf_event_attr
     return makeHardwareEventAttr(PERF_COUNT_HW_CPU_CYCLES);
 }
 
-/**
- *  Maps errno values from perf_event_open() to PmuError.
- *
- *  @param      err  The errno value to translate.
- *  @return     The corresponding PmuError value.
- */
-auto errnoToPmuError(int err) -> core::PmuError
-{
-    switch (err)
-    {
-        case EACCES:
-        case EPERM:
-
-            // User lacks CAP_PERFMON capability or perf_event_paranoid is too high.
-            return core::PmuError::kPermissionDenied;
-
-        case ENOENT:
-        case ENODEV:
-        case EOPNOTSUPP:
-
-            // The requested event is not available on this CPU or kernel.
-            // This can happen with cache events on some microarchitectures.
-            return core::PmuError::kEventNotSupported;
-
-        case ESRCH:
-        case EINVAL:
-
-            // Invalid PID/TID specified, or invalid combination of parameters
-            return core::PmuError::kInvalidTarget;
-
-        case EMFILE:
-        case ENFILE:
-
-            // Too many open file descriptors or PMU hardware counters exhausted.
-            return core::PmuError::kTooManyEvents;
-
-        default:
-            return core::PmuError::kOpenFailed;
-    }
-}
-
 }  // namespace
 
 PmuCounter::PmuCounter(int fd, PmuEventType event) noexcept : fd_(fd), event_type_(event) {}

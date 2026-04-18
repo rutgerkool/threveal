@@ -8,6 +8,8 @@
 #ifndef THREVEAL_COLLECTION_PERF_EVENT_HPP_
 #define THREVEAL_COLLECTION_PERF_EVENT_HPP_
 
+#include "threveal/core/errors.hpp"
+
 #include <cstdint>
 #include <linux/perf_event.h>
 #include <string_view>
@@ -93,6 +95,14 @@ enum class PmuEventType : std::uint8_t
  */
 [[nodiscard]] auto perfEventOpen(perf_event_attr* attr, pid_t pid, int cpu, int group_fd,
                                  unsigned long flags) -> int;
+
+/**
+ *  Maps errno values from perf_event_open() to PmuError.
+ *
+ *  @param      err  The errno value to translate.
+ *  @return     The corresponding PmuError value.
+ */
+[[nodiscard]] auto errnoToPmuError(int err) noexcept -> core::PmuError;
 
 }  // namespace threveal::collection
 
