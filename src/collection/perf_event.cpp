@@ -9,19 +9,30 @@
 
 #include "threveal/core/errors.hpp"
 
+#include <array>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <linux/perf_event.h>
+#include <optional>
+#include <string_view>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <vector>
 
 namespace threveal::collection
 {
 
 namespace
 {
+
+/**
+ *  Core PMUs exposed by the kernel on hybrid Intel CPUs.
+ */
+constexpr std::array<std::string_view, 2> kHybridCorePmus = {"cpu_core", "cpu_atom"};
 
 /**
  *  Configures a perf_event_attr structure for a hardware event.
@@ -79,6 +90,23 @@ auto makeCacheEventAttr(std::uint64_t cache_id, std::uint64_t op_id, std::uint64
     attr.exclude_hv = 1;
 
     return attr;
+}
+
+/**
+ *  Reads the numeric type of a PMU from its sysfs directory.
+ *
+ *  @param      pmu_dir  The PMU's directory under the event source directory.
+ *  @return     The PMU type, or std::nullopt if the PMU does not exist.
+ */
+auto readPmuType(const std::filesystem::path& pmu_dir) -> std::optional<std::uint32_t>
+{
+    std::ifstream file(pmu_dir / "type");
+    std::uint32_t type = 0;
+    if (!(file >> type))
+    {
+        return std::nullopt;
+    }
+    return type;
 }
 
 }  // namespace
@@ -158,6 +186,25 @@ auto errnoToPmuError(int err) noexcept -> core::PmuError
         default:
             return core::PmuError::kOpenFailed;
     }
+}
+
+auto detectCorePmuTypes(std::string_view event_source_dir) -> std::vector<std::uint32_t>
+{
+    std::vector<std::uint32_t> types;
+    for (auto pmu : kHybridCorePmus)
+    {
+        if (auto type = readPmuType(std::filesystem::path(event_source_dir) / pmu))
+        {
+            types.push_back(*type);
+        }
+    }
+
+    // Non-hybrid CPUs have a single core PMU that generic events already target
+    if (types.empty())
+    {
+        types.push_back(kDefaultPmuType);
+    }
+    return types;
 }
 
 }  // namespace threveal::collection

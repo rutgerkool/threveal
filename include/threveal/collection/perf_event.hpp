@@ -14,9 +14,20 @@
 #include <linux/perf_event.h>
 #include <string_view>
 #include <sys/types.h>
+#include <vector>
 
 namespace threveal::collection
 {
+
+/**
+ *  Directory where the kernel lists its perf event sources.
+ */
+inline constexpr std::string_view kEventSourceDir = "/sys/bus/event_source/devices";
+
+/**
+ *  PMU type that lets the kernel pick its default PMU for a generic event.
+ */
+inline constexpr std::uint32_t kDefaultPmuType = 0;
 
 /**
  *  Hardware performance counter event types.
@@ -111,6 +122,15 @@ enum class PmuEventType : std::uint8_t
  *  @return     The corresponding PmuError value.
  */
 [[nodiscard]] auto errnoToPmuError(int err) noexcept -> core::PmuError;
+
+/**
+ *  Detects the PMU types that per-thread hardware counters must be opened on.
+ *
+ *  @param      event_source_dir  Directory listing the perf event sources.
+ *  @return     The PMU types to open counters on, never empty.
+ */
+[[nodiscard]] auto detectCorePmuTypes(std::string_view event_source_dir = kEventSourceDir)
+    -> std::vector<std::uint32_t>;
 
 }  // namespace threveal::collection
 
