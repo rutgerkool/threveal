@@ -39,6 +39,14 @@ enum CounterIndex : std::uint8_t
 };
 
 /**
+ *  Events in counter order, matching CounterIndex. The leader must come first.
+ */
+constexpr std::array<PmuEventType, PmuGroup::kCounterCount> kGroupEvents{
+    PmuEventType::kCycles,        PmuEventType::kInstructions, PmuEventType::kLlcLoads,
+    PmuEventType::kLlcLoadMisses, PmuEventType::kBranchMisses,
+};
+
+/**
  *  Creates the attributes for the group leader, which reads all members at once.
  */
 auto makeLeaderAttr(PmuEventType event) -> perf_event_attr
@@ -116,76 +124,24 @@ auto PmuGroup::create(pid_t tid, int cpu) -> std::expected<PmuGroup, core::PmuEr
     std::array<int, kCounterCount> fds{};
     fds.fill(kInvalidFd);
 
-    // Cleanup helper to avoid leaking fds on partial failure
-    auto cleanup = [&fds]()
+    // Owning the fds up front lets the destructor close them if a later open fails
+    PmuGroup group{fds};
+
+    for (std::size_t i = 0; i < kCounterCount; ++i)
     {
-        for (int fd : fds)
+        bool is_leader = (i == 0);
+        auto event = kGroupEvents.at(i);
+        auto attr = is_leader ? makeLeaderAttr(event) : makeMemberAttr(event);
+        int group_fd = is_leader ? -1 : group.fds_[kCycles];
+
+        group.fds_.at(i) = perfEventOpen(&attr, tid, cpu, group_fd, 0);
+        if (group.fds_.at(i) < 0)
         {
-            if (fd != kInvalidFd)
-            {
-                close(fd);
-            }
+            return std::unexpected(errnoToPmuError(errno));
         }
-    };
-
-    // Create leader first (group_fd=-1 creates new group)
-    auto cycles_attr = makeLeaderAttr(PmuEventType::kCycles);
-    fds[kCycles] = perfEventOpen(&cycles_attr, tid, cpu, -1, 0);
-
-    if (fds[kCycles] < 0)
-    {
-        return std::unexpected(errnoToPmuError(errno));
     }
 
-    // All members join the group via leader_fd
-    int leader_fd = fds[kCycles];
-
-    // Instructions counter for IPC
-    auto instr_attr = makeMemberAttr(PmuEventType::kInstructions);
-    fds[kInstructions] = perfEventOpen(&instr_attr, tid, cpu, leader_fd, 0);
-
-    if (fds[kInstructions] < 0)
-    {
-        auto err = errnoToPmuError(errno);
-        cleanup();
-        return std::unexpected(err);
-    }
-
-    // LLC loads (accesses, i.e. hits + misses)
-    auto llc_loads_attr = makeMemberAttr(PmuEventType::kLlcLoads);
-    fds[kLlcLoads] = perfEventOpen(&llc_loads_attr, tid, cpu, leader_fd, 0);
-
-    if (fds[kLlcLoads] < 0)
-    {
-        auto err = errnoToPmuError(errno);
-        cleanup();
-        return std::unexpected(err);
-    }
-
-    // LLC misses (went to memory)
-    auto llc_misses_attr = makeMemberAttr(PmuEventType::kLlcLoadMisses);
-    fds[kLlcLoadMisses] = perfEventOpen(&llc_misses_attr, tid, cpu, leader_fd, 0);
-
-    if (fds[kLlcLoadMisses] < 0)
-    {
-        auto err = errnoToPmuError(errno);
-        cleanup();
-        return std::unexpected(err);
-    }
-
-    // Branch mispredictions
-    auto branch_attr = makeMemberAttr(PmuEventType::kBranchMisses);
-    fds[kBranchMisses] = perfEventOpen(&branch_attr, tid, cpu, leader_fd, 0);
-
-    if (fds[kBranchMisses] < 0)
-    {
-        auto err = errnoToPmuError(errno);
-        cleanup();
-        return std::unexpected(err);
-    }
-
-    // All counters created; PmuGroup takes ownership
-    return PmuGroup{fds};
+    return group;
 }
 
 auto PmuGroup::read() const -> std::expected<PmuGroupReading, core::PmuError>
