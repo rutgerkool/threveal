@@ -106,6 +106,7 @@ add_library(threveal_core STATIC
   src/analysis/event_store.cpp
   src/analysis/migration_analyzer.cpp
   src/analysis/recommendation.cpp
+  src/collection/perf_event.cpp
   src/collection/pmu_counter.cpp
   src/collection/pmu_group.cpp
   src/collection/pmu_sampler.cpp

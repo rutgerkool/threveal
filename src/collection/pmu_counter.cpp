@@ -7,6 +7,7 @@
 
 #include "threveal/collection/pmu_counter.hpp"
 
+#include "threveal/collection/perf_event.hpp"
 #include "threveal/core/errors.hpp"
 
 #include <cerrno>
@@ -15,7 +16,6 @@
 #include <expected>
 #include <linux/perf_event.h>
 #include <sys/ioctl.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <utility>
@@ -25,22 +25,6 @@ namespace threveal::collection
 
 namespace
 {
-
-/**
- *  Wrapper for the perf_event_open syscall.
- *
- *  @param      attr      Pointer to perf_event_attr configuration structure.
- *  @param      pid       Process/thread ID to monitor (-1 for calling thread).
- *  @param      cpu       CPU to monitor (-1 for any CPU the thread runs on).
- *  @param      group_fd  File descriptor of group leader (-1 for new group).
- *  @param      flags     Additional flags (usually 0).
- *  @return     File descriptor on success, -1 on error with errno set.
- */
-auto perfEventOpen(perf_event_attr* attr, pid_t pid, int cpu, int group_fd, unsigned long flags)
-    -> int
-{
-    return static_cast<int>(syscall(SYS_perf_event_open, attr, pid, cpu, group_fd, flags));
-}
 
 /**
  *  Configures a perf_event_attr structure for a hardware event.

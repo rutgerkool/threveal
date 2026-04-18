@@ -9,7 +9,9 @@
 #define THREVEAL_COLLECTION_PERF_EVENT_HPP_
 
 #include <cstdint>
+#include <linux/perf_event.h>
 #include <string_view>
+#include <sys/types.h>
 
 namespace threveal::collection
 {
@@ -78,6 +80,19 @@ enum class PmuEventType : std::uint8_t
     }
     return "unknown";
 }
+
+/**
+ *  Wrapper for the perf_event_open syscall.
+ *
+ *  @param      attr      Pointer to perf_event_attr configuration structure.
+ *  @param      pid       Process/thread ID to monitor (0 for calling thread).
+ *  @param      cpu       CPU to monitor (-1 for any CPU the thread runs on).
+ *  @param      group_fd  File descriptor of group leader (-1 for new group).
+ *  @param      flags     Additional flags (usually 0).
+ *  @return     File descriptor on success, -1 on error with errno set.
+ */
+[[nodiscard]] auto perfEventOpen(perf_event_attr* attr, pid_t pid, int cpu, int group_fd,
+                                 unsigned long flags) -> int;
 
 }  // namespace threveal::collection
 
