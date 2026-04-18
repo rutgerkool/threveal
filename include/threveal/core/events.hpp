@@ -201,6 +201,20 @@ struct PmuSample
         }
         return static_cast<double>(llc_misses) / static_cast<double>(llc_references);
     }
+
+    /**
+     *  Computes branch mispredictions per retired instruction.
+     *
+     *  @return     Branch misses per instruction, or 0.0 if no instructions.
+     */
+    [[nodiscard]] constexpr auto branchMissRate() const noexcept -> double
+    {
+        if (instructions == 0)
+        {
+            return 0.0;
+        }
+        return static_cast<double>(branch_misses) / static_cast<double>(instructions);
+    }
 };
 
 /**
