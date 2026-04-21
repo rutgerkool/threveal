@@ -110,10 +110,12 @@ enum class PmuEventType : std::uint8_t
 /**
  *  Creates a perf_event_attr for the given PmuEventType.
  *
- *  @param      event  The PMU event type to configure.
+ *  @param      event     The PMU event type to configure.
+ *  @param      pmu_type  The PMU that should count the event.
  *  @return     Configured perf_event_attr structure for the requested event.
  */
-[[nodiscard]] auto makeEventAttr(PmuEventType event) -> perf_event_attr;
+[[nodiscard]] auto makeEventAttr(PmuEventType event, std::uint32_t pmu_type = kDefaultPmuType)
+    -> perf_event_attr;
 
 /**
  *  Maps errno values from perf_event_open() to PmuError.

@@ -35,12 +35,22 @@ namespace
 constexpr std::array<std::string_view, 2> kHybridCorePmus = {"cpu_core", "cpu_atom"};
 
 /**
+ *  Places a PMU type in the upper config bits, where the kernel reads it as the
+ *  PMU that should count a generic hardware or cache event.
+ */
+constexpr auto encodePmuType(std::uint32_t pmu_type) noexcept -> std::uint64_t
+{
+    return static_cast<std::uint64_t>(pmu_type) << PERF_PMU_TYPE_SHIFT;
+}
+
+/**
  *  Configures a perf_event_attr structure for a hardware event.
  *
- *  @param      config  The PERF_COUNT_HW_* constant for the desired event.
+ *  @param      config    The PERF_COUNT_HW_* constant for the desired event.
+ *  @param      pmu_type  The PMU that should count the event.
  *  @return     Configured perf_event_attr structure ready for perf_event_open().
  */
-auto makeHardwareEventAttr(std::uint64_t config) -> perf_event_attr
+auto makeHardwareEventAttr(std::uint64_t config, std::uint32_t pmu_type) -> perf_event_attr
 {
     perf_event_attr attr{};
 
@@ -53,7 +63,7 @@ auto makeHardwareEventAttr(std::uint64_t config) -> perf_event_attr
     attr.size = sizeof(attr);
 
     // The specific hardware event (cycles, instructions, etc.)
-    attr.config = config;
+    attr.config = config | encodePmuType(pmu_type);
 
     // Start disabled so caller can set up multiple counters before enabling
     attr.disabled = 1;
@@ -71,10 +81,11 @@ auto makeHardwareEventAttr(std::uint64_t config) -> perf_event_attr
  *  @param      cache_id   The cache level (e.g., PERF_COUNT_HW_CACHE_LL).
  *  @param      op_id      The operation (e.g., PERF_COUNT_HW_CACHE_OP_READ).
  *  @param      result_id  The result type (e.g., PERF_COUNT_HW_CACHE_RESULT_MISS).
+ *  @param      pmu_type   The PMU that should count the event.
  *  @return     Configured perf_event_attr structure ready for perf_event_open().
  */
-auto makeCacheEventAttr(std::uint64_t cache_id, std::uint64_t op_id, std::uint64_t result_id)
-    -> perf_event_attr
+auto makeCacheEventAttr(std::uint64_t cache_id, std::uint64_t op_id, std::uint64_t result_id,
+                        std::uint32_t pmu_type) -> perf_event_attr
 {
     perf_event_attr attr{};
     std::memset(&attr, 0, sizeof(attr));
@@ -83,7 +94,7 @@ auto makeCacheEventAttr(std::uint64_t cache_id, std::uint64_t op_id, std::uint64
     attr.size = sizeof(attr);
 
     // Encode cache_id, operation, and result into the config field.
-    attr.config = cache_id | (op_id << 8) | (result_id << 16);
+    attr.config = cache_id | (op_id << 8) | (result_id << 16) | encodePmuType(pmu_type);
 
     attr.disabled = 1;
     attr.exclude_kernel = 1;
@@ -117,40 +128,40 @@ auto perfEventOpen(perf_event_attr* attr, pid_t pid, int cpu, int group_fd, unsi
     return static_cast<int>(syscall(SYS_perf_event_open, attr, pid, cpu, group_fd, flags));
 }
 
-auto makeEventAttr(PmuEventType event) -> perf_event_attr
+auto makeEventAttr(PmuEventType event, std::uint32_t pmu_type) -> perf_event_attr
 {
     switch (event)
     {
         case PmuEventType::kCycles:
 
             // Total CPU cycles elapsed
-            return makeHardwareEventAttr(PERF_COUNT_HW_CPU_CYCLES);
+            return makeHardwareEventAttr(PERF_COUNT_HW_CPU_CYCLES, pmu_type);
 
         case PmuEventType::kInstructions:
 
             // Retired instructions
-            return makeHardwareEventAttr(PERF_COUNT_HW_INSTRUCTIONS);
+            return makeHardwareEventAttr(PERF_COUNT_HW_INSTRUCTIONS, pmu_type);
 
         case PmuEventType::kBranchMisses:
 
             // Branch predictions that were incorrect
-            return makeHardwareEventAttr(PERF_COUNT_HW_BRANCH_MISSES);
+            return makeHardwareEventAttr(PERF_COUNT_HW_BRANCH_MISSES, pmu_type);
 
         case PmuEventType::kLlcLoads:
 
             // Last-level cache read accesses (hits + misses)
             return makeCacheEventAttr(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
-                                      PERF_COUNT_HW_CACHE_RESULT_ACCESS);
+                                      PERF_COUNT_HW_CACHE_RESULT_ACCESS, pmu_type);
 
         case PmuEventType::kLlcLoadMisses:
 
             // Last-level cache read misses
             return makeCacheEventAttr(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
-                                      PERF_COUNT_HW_CACHE_RESULT_MISS);
+                                      PERF_COUNT_HW_CACHE_RESULT_MISS, pmu_type);
     }
 
     // Unreachable if all enum cases handled, but provides safe fallback
-    return makeHardwareEventAttr(PERF_COUNT_HW_CPU_CYCLES);
+    return makeHardwareEventAttr(PERF_COUNT_HW_CPU_CYCLES, pmu_type);
 }
 
 auto errnoToPmuError(int err) noexcept -> core::PmuError
