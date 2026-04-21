@@ -108,6 +108,7 @@ jobs:
             build/test_pmu_counter
             build/test_pmu_group
             build/test_pmu_sampler
+            build/test_perf_event
             build/test_migration_analyzer
             build/test_recommendation
             build/test_ebpf_loader
@@ -152,6 +153,7 @@ jobs:
           chmod +x build/test_pmu_counter
           chmod +x build/test_pmu_group
           chmod +x build/test_pmu_sampler
+          chmod +x build/test_perf_event
           chmod +x build/test_migration_analyzer
           chmod +x build/test_recommendation
           chmod +x build/test_ebpf_loader
@@ -166,6 +168,7 @@ jobs:
           ./build/test_pmu_counter
           ./build/test_pmu_group
           ./build/test_pmu_sampler
+          ./build/test_perf_event
           ./build/test_migration_analyzer
           ./build/test_recommendation
           ./build/test_ebpf_loader
