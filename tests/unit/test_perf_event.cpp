@@ -8,10 +8,12 @@
 #include "threveal/collection/perf_event.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <linux/perf_event.h>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -19,6 +21,8 @@
 
 using threveal::collection::detectCorePmuTypes;
 using threveal::collection::kDefaultPmuType;
+using threveal::collection::makeEventAttr;
+using threveal::collection::PmuEventType;
 
 namespace
 {
@@ -116,4 +120,29 @@ TEST_CASE("detectCorePmuTypes never returns an empty list on this machine",
           "[collection][perf_event]")
 {
     REQUIRE_FALSE(detectCorePmuTypes().empty());
+}
+
+TEST_CASE("makeEventAttr leaves the config untouched for the default PMU",
+          "[collection][perf_event]")
+{
+    auto attr = makeEventAttr(PmuEventType::kCycles);
+
+    REQUIRE(attr.type == PERF_TYPE_HARDWARE);
+    REQUIRE(attr.config == PERF_COUNT_HW_CPU_CYCLES);
+}
+
+TEST_CASE("makeEventAttr encodes the PMU type in the upper config bits", "[collection][perf_event]")
+{
+    constexpr std::uint32_t kAtomPmuType = 10;
+
+    auto event =
+        GENERATE(PmuEventType::kCycles, PmuEventType::kInstructions, PmuEventType::kLlcLoads,
+                 PmuEventType::kLlcLoadMisses, PmuEventType::kBranchMisses);
+
+    auto generic = makeEventAttr(event);
+    auto targeted = makeEventAttr(event, kAtomPmuType);
+
+    REQUIRE(targeted.type == generic.type);
+    REQUIRE((targeted.config & PERF_HW_EVENT_MASK) == generic.config);
+    REQUIRE((targeted.config >> PERF_PMU_TYPE_SHIFT) == kAtomPmuType);
 }
