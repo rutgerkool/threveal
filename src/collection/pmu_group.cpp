@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <linux/perf_event.h>
@@ -74,6 +75,31 @@ struct GroupReadFormat
     std::uint64_t nr;                                           // Number of counters in group
     std::array<std::uint64_t, PmuGroup::kCounterCount> values;  // Counter values in order
 };
+
+/**
+ *  Reads every counter of one group through its leader.
+ *
+ *  @param      leader_fd  File descriptor of the group leader.
+ *  @return     The counter values in counter order, or PmuError on failure.
+ */
+auto readGroupValues(int leader_fd)
+    -> std::expected<std::array<std::uint64_t, PmuGroup::kCounterCount>, core::PmuError>
+{
+    GroupReadFormat data{};
+
+    ssize_t bytes_read = ::read(leader_fd, &data, sizeof(data));
+    if (bytes_read < 0 || static_cast<std::size_t>(bytes_read) < sizeof(data.nr))
+    {
+        return std::unexpected(core::PmuError::kReadFailed);
+    }
+
+    if (data.nr != PmuGroup::kCounterCount)
+    {
+        return std::unexpected(core::PmuError::kReadFailed);
+    }
+
+    return data.values;
+}
 
 }  // namespace
 
@@ -149,77 +175,45 @@ auto PmuGroup::read() const -> std::expected<PmuGroupReading, core::PmuError>
         return std::unexpected(core::PmuError::kInvalidState);
     }
 
-    GroupReadFormat data{};
-
-    ssize_t bytes_read = ::read(fds_[kCycles], &data, sizeof(data));
-
-    if (bytes_read < 0)
+    auto values = readGroupValues(fds_[kCycles]);
+    if (!values)
     {
-        return std::unexpected(core::PmuError::kReadFailed);
-    }
-
-    // Ensure we got enough bytes
-    if (static_cast<std::size_t>(bytes_read) < sizeof(data.nr))
-    {
-        return std::unexpected(core::PmuError::kReadFailed);
-    }
-
-    // Verify counter count matches
-    if (data.nr != kCounterCount)
-    {
-        return std::unexpected(core::PmuError::kReadFailed);
+        return std::unexpected(values.error());
     }
 
     return PmuGroupReading{
-        .cycles = data.values[kCycles],
-        .instructions = data.values[kInstructions],
-        .llc_loads = data.values[kLlcLoads],
-        .llc_load_misses = data.values[kLlcLoadMisses],
-        .branch_misses = data.values[kBranchMisses],
+        .cycles = (*values)[kCycles],
+        .instructions = (*values)[kInstructions],
+        .llc_loads = (*values)[kLlcLoads],
+        .llc_load_misses = (*values)[kLlcLoadMisses],
+        .branch_misses = (*values)[kBranchMisses],
     };
 }
 
 auto PmuGroup::reset() const -> std::expected<void, core::PmuError>
 {
-    if (!isValid())
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    // FLAG_GROUP resets all members atomically
-    if (ioctl(fds_[kCycles], PERF_EVENT_IOC_RESET, PERF_IOC_FLAG_GROUP) < 0)
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    return {};
+    return ioctlAll(PERF_EVENT_IOC_RESET);
 }
 
 auto PmuGroup::enable() const -> std::expected<void, core::PmuError>
 {
-    if (!isValid())
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    // FLAG_GROUP enables all members simultaneously
-    if (ioctl(fds_[kCycles], PERF_EVENT_IOC_ENABLE, PERF_IOC_FLAG_GROUP) < 0)
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    return {};
+    return ioctlAll(PERF_EVENT_IOC_ENABLE);
 }
 
 auto PmuGroup::disable() const -> std::expected<void, core::PmuError>
+{
+    return ioctlAll(PERF_EVENT_IOC_DISABLE);
+}
+
+auto PmuGroup::ioctlAll(unsigned long request) const -> std::expected<void, core::PmuError>
 {
     if (!isValid())
     {
         return std::unexpected(core::PmuError::kInvalidState);
     }
 
-    // FLAG_GROUP disables all members
-    if (ioctl(fds_[kCycles], PERF_EVENT_IOC_DISABLE, PERF_IOC_FLAG_GROUP) < 0)
+    // FLAG_GROUP applies the request to every member of the leader's group
+    if (ioctl(fds_[kCycles], request, PERF_IOC_FLAG_GROUP) < 0)
     {
         return std::unexpected(core::PmuError::kInvalidState);
     }

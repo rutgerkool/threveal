@@ -166,6 +166,14 @@ class PmuGroup
     explicit PmuGroup(std::array<int, kCounterCount> fds) noexcept;
 
     /**
+     *  Applies a perf_event ioctl to every counter through the group leader.
+     *
+     *  @param      request  The PERF_EVENT_IOC_* request.
+     *  @return     Success or PmuError on failure.
+     */
+    [[nodiscard]] auto ioctlAll(unsigned long request) const -> std::expected<void, core::PmuError>;
+
+    /**
      *  Closes all valid file descriptors.
      */
     void closeAll() noexcept;
