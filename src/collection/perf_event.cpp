@@ -32,7 +32,7 @@ namespace
 /**
  *  Core PMUs exposed by the kernel on hybrid Intel CPUs.
  */
-constexpr std::array<std::string_view, 2> kHybridCorePmus = {"cpu_core", "cpu_atom"};
+constexpr std::array<std::string_view, kMaxCorePmus> kHybridCorePmus = {"cpu_core", "cpu_atom"};
 
 /**
  *  Places a PMU type in the upper config bits, where the kernel reads it as the

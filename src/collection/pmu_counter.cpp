@@ -17,43 +17,45 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <utility>
 
 namespace threveal::collection
 {
 
-PmuCounter::PmuCounter(int fd, PmuEventType event) noexcept : fd_(fd), event_type_(event) {}
+PmuCounter::PmuCounter(FdArray fds, PmuEventType event) noexcept : fds_(fds), event_type_(event) {}
 
 PmuCounter::~PmuCounter()
 {
-    // Close the perf_event file descriptor to release the PMU resource
-    if (fd_ != kInvalidFd)
-    {
-        close(fd_);
-    }
+    closeAll();
 }
 
 PmuCounter::PmuCounter(PmuCounter&& other) noexcept
-    : fd_(std::exchange(other.fd_, kInvalidFd)), event_type_(other.event_type_)
+    : fds_(other.fds_), event_type_(other.event_type_)
 {
-    // std::exchange atomically takes ownership and invalidates the source
+    other.fds_.fill(kInvalidFd);
 }
 
 auto PmuCounter::operator=(PmuCounter&& other) noexcept -> PmuCounter&
 {
     if (this != &other)
     {
-        // Close our existing fd before taking ownership of other's
-        if (fd_ != kInvalidFd)
-        {
-            close(fd_);
-        }
-
-        // Transfer ownership and invalidate source
-        fd_ = std::exchange(other.fd_, kInvalidFd);
+        closeAll();
+        fds_ = other.fds_;
         event_type_ = other.event_type_;
+        other.fds_.fill(kInvalidFd);
     }
     return *this;
+}
+
+void PmuCounter::closeAll() noexcept
+{
+    for (int& fd : fds_)
+    {
+        if (fd != kInvalidFd)
+        {
+            close(fd);
+            fd = kInvalidFd;
+        }
+    }
 }
 
 auto PmuCounter::create(PmuEventType event, pid_t tid, int cpu)
@@ -72,75 +74,70 @@ auto PmuCounter::create(PmuEventType event, pid_t tid, int cpu)
         return std::unexpected(errnoToPmuError(errno));
     }
 
-    return PmuCounter{fd, event};
+    FdArray fds{};
+    fds.fill(kInvalidFd);
+    fds[0] = fd;
+
+    return PmuCounter{fds, event};
 }
 
 auto PmuCounter::read() const -> std::expected<std::uint64_t, core::PmuError>
 {
-    if (fd_ == kInvalidFd)
+    if (!isValid())
     {
         return std::unexpected(core::PmuError::kInvalidState);
     }
 
-    // Reading from a perf_event fd returns the accumulated counter value.
-    std::uint64_t value = 0;
-    ssize_t bytes_read = ::read(fd_, &value, sizeof(value));
-
-    if (bytes_read != sizeof(value))
+    // Each core PMU only counts while the thread runs on its core type
+    std::uint64_t total = 0;
+    for (int fd : fds_)
     {
-        // Partial read or error - counter may have been closed
-        return std::unexpected(core::PmuError::kReadFailed);
+        if (fd == kInvalidFd)
+        {
+            continue;
+        }
+
+        std::uint64_t value = 0;
+        if (::read(fd, &value, sizeof(value)) != sizeof(value))
+        {
+            return std::unexpected(core::PmuError::kReadFailed);
+        }
+        total += value;
     }
 
-    return value;
+    return total;
 }
 
 auto PmuCounter::reset() const -> std::expected<void, core::PmuError>
 {
-    if (fd_ == kInvalidFd)
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    // PERF_EVENT_IOC_RESET zeros the counter value.
-    // The counter continues in its current enabled/disabled state.
-    if (ioctl(fd_, PERF_EVENT_IOC_RESET, 0) < 0)
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    return {};
+    // Zeros the counter; it keeps its current enabled/disabled state
+    return ioctlAll(PERF_EVENT_IOC_RESET);
 }
 
 auto PmuCounter::enable() const -> std::expected<void, core::PmuError>
 {
-    if (fd_ == kInvalidFd)
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    // PERF_EVENT_IOC_ENABLE starts the counter.
-    // Events are accumulated from this point until disable() is called.
-    if (ioctl(fd_, PERF_EVENT_IOC_ENABLE, 0) < 0)
-    {
-        return std::unexpected(core::PmuError::kInvalidState);
-    }
-
-    return {};
+    return ioctlAll(PERF_EVENT_IOC_ENABLE);
 }
 
 auto PmuCounter::disable() const -> std::expected<void, core::PmuError>
 {
-    if (fd_ == kInvalidFd)
+    // Stops counting but keeps the value readable
+    return ioctlAll(PERF_EVENT_IOC_DISABLE);
+}
+
+auto PmuCounter::ioctlAll(unsigned long request) const -> std::expected<void, core::PmuError>
+{
+    if (!isValid())
     {
         return std::unexpected(core::PmuError::kInvalidState);
     }
 
-    // PERF_EVENT_IOC_DISABLE stops counting but preserves the current value.
-    // The counter can be read after disabling to get the final count.
-    if (ioctl(fd_, PERF_EVENT_IOC_DISABLE, 0) < 0)
+    for (int fd : fds_)
     {
-        return std::unexpected(core::PmuError::kInvalidState);
+        if (fd != kInvalidFd && ioctl(fd, request, 0) < 0)
+        {
+            return std::unexpected(core::PmuError::kInvalidState);
+        }
     }
 
     return {};
@@ -153,12 +150,12 @@ auto PmuCounter::eventType() const noexcept -> PmuEventType
 
 auto PmuCounter::fileDescriptor() const noexcept -> int
 {
-    return fd_;
+    return fds_[0];
 }
 
 auto PmuCounter::isValid() const noexcept -> bool
 {
-    return fd_ != kInvalidFd;
+    return fds_[0] != kInvalidFd;
 }
 
 }  // namespace threveal::collection

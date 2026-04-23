@@ -11,6 +11,7 @@
 #include "threveal/collection/perf_event.hpp"
 #include "threveal/core/errors.hpp"
 
+#include <array>
 #include <cstdint>
 #include <expected>
 #include <sys/types.h>
@@ -95,7 +96,7 @@ class PmuCounter
     [[nodiscard]] auto eventType() const noexcept -> PmuEventType;
 
     /**
-     *  Returns the underlying file descriptor.
+     *  Returns the file descriptor of the first core PMU.
      *
      *  @return     The perf_event file descriptor, or -1 if invalid.
      */
@@ -110,16 +111,34 @@ class PmuCounter
 
   private:
     /**
+     *  One perf_event file descriptor per core PMU. Unused slots hold kInvalidFd.
+     */
+    using FdArray = std::array<int, kMaxCorePmus>;
+
+    /**
      *  Private constructor - use create() factory method.
      *
-     *  @param      fd     The perf_event file descriptor.
+     *  @param      fds    The perf_event file descriptors, first slot always valid.
      *  @param      event  The event type being counted.
      */
-    PmuCounter(int fd, PmuEventType event) noexcept;
+    PmuCounter(FdArray fds, PmuEventType event) noexcept;
+
+    /**
+     *  Applies a perf_event ioctl to every open file descriptor.
+     *
+     *  @param      request  The PERF_EVENT_IOC_* request.
+     *  @return     Success or PmuError on failure.
+     */
+    [[nodiscard]] auto ioctlAll(unsigned long request) const -> std::expected<void, core::PmuError>;
+
+    /**
+     *  Closes every open file descriptor.
+     */
+    void closeAll() noexcept;
 
     static constexpr int kInvalidFd = -1;
 
-    int fd_;
+    FdArray fds_;
     PmuEventType event_type_;
 };
 

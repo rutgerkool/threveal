@@ -10,6 +10,7 @@
 
 #include "threveal/core/errors.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <linux/perf_event.h>
 #include <string_view>
@@ -28,6 +29,11 @@ inline constexpr std::string_view kEventSourceDir = "/sys/bus/event_source/devic
  *  PMU type that lets the kernel pick its default PMU for a generic event.
  */
 inline constexpr std::uint32_t kDefaultPmuType = 0;
+
+/**
+ *  Maximum number of core PMUs a CPU exposes (cpu_core and cpu_atom on hybrid Intel).
+ */
+inline constexpr std::size_t kMaxCorePmus = 2;
 
 /**
  *  Hardware performance counter event types.
