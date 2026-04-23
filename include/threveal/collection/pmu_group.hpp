@@ -8,6 +8,7 @@
 #ifndef THREVEAL_COLLECTION_PMU_GROUP_HPP_
 #define THREVEAL_COLLECTION_PMU_GROUP_HPP_
 
+#include "threveal/collection/perf_event.hpp"
 #include "threveal/core/errors.hpp"
 
 #include <array>
@@ -159,14 +160,29 @@ class PmuGroup
 
   private:
     /**
-     *  Private constructor
-     *
-     *  @param      fds  Array of perf_event file descriptors.
+     *  File descriptors of one group, in counter order.
      */
-    explicit PmuGroup(std::array<int, kCounterCount> fds) noexcept;
+    using GroupFds = std::array<int, kCounterCount>;
 
     /**
-     *  Applies a perf_event ioctl to every counter through the group leader.
+     *  One group per core PMU. Unused groups hold kInvalidFd.
+     */
+    using GroupFdArray = std::array<GroupFds, kMaxCorePmus>;
+
+    /**
+     *  Private constructor
+     *
+     *  @param      groups  The perf_event file descriptors of each group.
+     */
+    explicit PmuGroup(GroupFdArray groups) noexcept;
+
+    /**
+     *  Returns a group array with every file descriptor invalid.
+     */
+    [[nodiscard]] static auto invalidGroups() noexcept -> GroupFdArray;
+
+    /**
+     *  Applies a perf_event ioctl to every counter through the group leaders.
      *
      *  @param      request  The PERF_EVENT_IOC_* request.
      *  @return     Success or PmuError on failure.
@@ -180,10 +196,7 @@ class PmuGroup
 
     static constexpr int kInvalidFd = -1;
 
-    /**
-     *  File descriptors for each counter in the group.
-     */
-    std::array<int, kCounterCount> fds_;
+    GroupFdArray groups_;
 };
 
 }  // namespace threveal::collection

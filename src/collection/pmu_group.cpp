@@ -20,6 +20,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <utility>
 
 namespace threveal::collection
 {
@@ -103,63 +104,68 @@ auto readGroupValues(int leader_fd)
 
 }  // namespace
 
-PmuGroup::PmuGroup(std::array<int, kCounterCount> fds) noexcept : fds_(fds) {}
+PmuGroup::PmuGroup(GroupFdArray groups) noexcept : groups_(groups) {}
 
 PmuGroup::~PmuGroup()
 {
     closeAll();
 }
 
-PmuGroup::PmuGroup(PmuGroup&& other) noexcept : fds_(other.fds_)
+PmuGroup::PmuGroup(PmuGroup&& other) noexcept
+    : groups_(std::exchange(other.groups_, invalidGroups()))
 {
-    // Invalidate source to prevent double-close
-    other.fds_.fill(kInvalidFd);
 }
 
 auto PmuGroup::operator=(PmuGroup&& other) noexcept -> PmuGroup&
 {
     if (this != &other)
     {
-        // Release our current resources first
         closeAll();
-
-        fds_ = other.fds_;
-
-        // Invalidate source
-        other.fds_.fill(kInvalidFd);
+        groups_ = std::exchange(other.groups_, invalidGroups());
     }
     return *this;
 }
 
+auto PmuGroup::invalidGroups() noexcept -> GroupFdArray
+{
+    GroupFdArray groups{};
+    for (auto& fds : groups)
+    {
+        fds.fill(kInvalidFd);
+    }
+    return groups;
+}
+
 void PmuGroup::closeAll() noexcept
 {
-    for (int& fd : fds_)
+    for (auto& fds : groups_)
     {
-        if (fd != kInvalidFd)
+        for (int& fd : fds)
         {
-            close(fd);
-            fd = kInvalidFd;
+            if (fd != kInvalidFd)
+            {
+                close(fd);
+                fd = kInvalidFd;
+            }
         }
     }
 }
 
 auto PmuGroup::create(pid_t tid, int cpu) -> std::expected<PmuGroup, core::PmuError>
 {
-    std::array<int, kCounterCount> fds{};
-    fds.fill(kInvalidFd);
-
     // Owning the fds up front lets the destructor close them if a later open fails
-    PmuGroup group{fds};
+    PmuGroup group{invalidGroups()};
+    auto& fds = group.groups_[0];
 
     for (std::size_t i = 0; i < kCounterCount; ++i)
     {
         bool is_leader = (i == 0);
         auto event = kGroupEvents.at(i);
         auto attr = is_leader ? makeLeaderAttr(event) : makeMemberAttr(event);
-        int group_fd = is_leader ? -1 : group.fds_[kCycles];
+        int group_fd = is_leader ? -1 : fds[kCycles];
 
-        group.fds_.at(i) = perfEventOpen(&attr, tid, cpu, group_fd, 0);
-        if (group.fds_.at(i) < 0)
+        fds.at(i) = perfEventOpen(&attr, tid, cpu, group_fd, 0);
+        if (fds.at(i) < 0)
         {
             return std::unexpected(errnoToPmuError(errno));
         }
@@ -175,18 +181,33 @@ auto PmuGroup::read() const -> std::expected<PmuGroupReading, core::PmuError>
         return std::unexpected(core::PmuError::kInvalidState);
     }
 
-    auto values = readGroupValues(fds_[kCycles]);
-    if (!values)
+    // Each group only counts while the thread runs on its core type
+    std::array<std::uint64_t, kCounterCount> totals{};
+    for (const auto& fds : groups_)
     {
-        return std::unexpected(values.error());
+        if (fds[kCycles] == kInvalidFd)
+        {
+            continue;
+        }
+
+        auto values = readGroupValues(fds[kCycles]);
+        if (!values)
+        {
+            return std::unexpected(values.error());
+        }
+
+        for (std::size_t i = 0; i < kCounterCount; ++i)
+        {
+            totals.at(i) += values->at(i);
+        }
     }
 
     return PmuGroupReading{
-        .cycles = (*values)[kCycles],
-        .instructions = (*values)[kInstructions],
-        .llc_loads = (*values)[kLlcLoads],
-        .llc_load_misses = (*values)[kLlcLoadMisses],
-        .branch_misses = (*values)[kBranchMisses],
+        .cycles = totals[kCycles],
+        .instructions = totals[kInstructions],
+        .llc_loads = totals[kLlcLoads],
+        .llc_load_misses = totals[kLlcLoadMisses],
+        .branch_misses = totals[kBranchMisses],
     };
 }
 
@@ -213,9 +234,12 @@ auto PmuGroup::ioctlAll(unsigned long request) const -> std::expected<void, core
     }
 
     // FLAG_GROUP applies the request to every member of the leader's group
-    if (ioctl(fds_[kCycles], request, PERF_IOC_FLAG_GROUP) < 0)
+    for (const auto& fds : groups_)
     {
-        return std::unexpected(core::PmuError::kInvalidState);
+        if (fds[kCycles] != kInvalidFd && ioctl(fds[kCycles], request, PERF_IOC_FLAG_GROUP) < 0)
+        {
+            return std::unexpected(core::PmuError::kInvalidState);
+        }
     }
 
     return {};
@@ -223,8 +247,7 @@ auto PmuGroup::ioctlAll(unsigned long request) const -> std::expected<void, core
 
 auto PmuGroup::isValid() const noexcept -> bool
 {
-    // Valid only if ALL file descriptors are valid
-    return std::ranges::all_of(fds_,
+    return std::ranges::all_of(groups_[0],
                                [](int fd)
                                {
                                    return fd != kInvalidFd;
