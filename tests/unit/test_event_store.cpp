@@ -76,7 +76,6 @@ TEST_CASE("EventStore maintains migrations sorted by timestamp", "[analysis][Eve
 {
     EventStore store;
 
-    // Insert migrations out of chronological order to verify sorting
     store.addMigration(makeMigration(3000, 42, 0, 1));
     store.addMigration(makeMigration(1000, 42, 1, 0));
     store.addMigration(makeMigration(4000, 42, 0, 1));
@@ -84,7 +83,6 @@ TEST_CASE("EventStore maintains migrations sorted by timestamp", "[analysis][Eve
 
     REQUIRE(store.migrationCount() == 4);
 
-    // Verify they are stored in ascending timestamp order
     auto all = store.allMigrations();
     REQUIRE(all[0].timestamp_ns == 1000);
     REQUIRE(all[1].timestamp_ns == 2000);
@@ -109,7 +107,6 @@ TEST_CASE("EventStore maintains PMU samples sorted by timestamp", "[analysis][Ev
 {
     EventStore store;
 
-    // Insert samples out of chronological order to verify sorting
     store.addPmuSample(makePmuSample(3000, 42, 0));
     store.addPmuSample(makePmuSample(1000, 42, 0));
     store.addPmuSample(makePmuSample(4000, 42, 0));
@@ -117,7 +114,6 @@ TEST_CASE("EventStore maintains PMU samples sorted by timestamp", "[analysis][Ev
 
     REQUIRE(store.pmuSampleCount() == 4);
 
-    // Verify they are stored in ascending timestamp order
     auto all = store.allPmuSamples();
     REQUIRE(all[0].timestamp_ns == 1000);
     REQUIRE(all[1].timestamp_ns == 2000);
@@ -195,7 +191,6 @@ TEST_CASE("EventStore time range query uses binary search efficiently", "[analys
 {
     EventStore store;
 
-    // Insert migrations out of order to ensure sorting works
     store.addMigration(makeMigration(5000, 42, 0, 1));
     store.addMigration(makeMigration(1000, 42, 0, 1));
     store.addMigration(makeMigration(3000, 42, 0, 1));
@@ -204,7 +199,6 @@ TEST_CASE("EventStore time range query uses binary search efficiently", "[analys
 
     SECTION("range query returns correct results regardless of insertion order")
     {
-        // Query middle range, should find 3000, 5000, 7000
         auto result = store.migrationsInRange(2500, 7500);
         REQUIRE(result.size() == 3);
         REQUIRE(result[0].timestamp_ns == 3000);
@@ -321,7 +315,6 @@ TEST_CASE("EventStore PMU correlation with out-of-order insertion", "[analysis][
 {
     EventStore store;
 
-    // Insert samples out of order to verify binary search works correctly
     store.addPmuSample(makePmuSample(4000, 42, 1));
     store.addPmuSample(makePmuSample(1000, 42, 0));
     store.addPmuSample(makePmuSample(3000, 42, 0));
@@ -348,7 +341,6 @@ TEST_CASE("EventStore PMU correlation with multiple threads", "[analysis][EventS
 {
     EventStore store;
 
-    // Interleaved samples from different threads
     store.addPmuSample(makePmuSample(1000, 42, 0));
     store.addPmuSample(makePmuSample(1500, 43, 0));
     store.addPmuSample(makePmuSample(2000, 42, 0));
@@ -358,7 +350,6 @@ TEST_CASE("EventStore PMU correlation with multiple threads", "[analysis][EventS
 
     SECTION("pmuBeforeMigration finds correct thread's sample")
     {
-        // Migration at 2800 for thread 42 , should find sample at 2000
         auto migration = makeMigration(2800, 42, 0, 1);
         auto result = store.pmuBeforeMigration(migration);
         REQUIRE(result.has_value());
@@ -368,7 +359,6 @@ TEST_CASE("EventStore PMU correlation with multiple threads", "[analysis][EventS
 
     SECTION("pmuAfterMigration finds correct thread's sample")
     {
-        // Migration at 2200 for thread 42, should find sample at 3000
         auto migration = makeMigration(2200, 42, 0, 1);
         auto result = store.pmuAfterMigration(migration);
         REQUIRE(result.has_value());

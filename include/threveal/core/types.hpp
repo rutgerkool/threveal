@@ -36,12 +36,12 @@ enum class CoreType : std::uint8_t
     kUnknown = 0,
 
     /**
-     *  Performance core (Golden Cove / Raptor Cove).
+     *  Performance core
      */
     kPCore = 1,
 
     /**
-     *  Efficiency core (Gracemont).
+     *  Efficiency core
      */
     kECore = 2,
 };

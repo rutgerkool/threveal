@@ -61,13 +61,11 @@ TEST_CASE("PmuCounter creation requires permissions", "[collection][PmuCounter]"
 
     if (!hasPmuAccess())
     {
-        // Without permissions, creation should fail
         REQUIRE_FALSE(counter.has_value());
         REQUIRE(counter.error() == PmuError::kPermissionDenied);
     }
     else
     {
-        // With permissions, creation should succeed
         REQUIRE(counter.has_value());
         REQUIRE(counter->isValid());
         REQUIRE(counter->eventType() == PmuEventType::kCycles);
@@ -76,12 +74,10 @@ TEST_CASE("PmuCounter creation requires permissions", "[collection][PmuCounter]"
 
 TEST_CASE("PmuCounter invalid target", "[collection][PmuCounter]")
 {
-    // Try to create counter for non-existent process
     auto counter = PmuCounter::create(PmuEventType::kCycles, 999999999);
 
     REQUIRE_FALSE(counter.has_value());
 
-    // Should get either permission denied or invalid target depending on check order
     REQUIRE((counter.error() == PmuError::kInvalidTarget ||
              counter.error() == PmuError::kPermissionDenied));
 }
@@ -99,13 +95,11 @@ TEST_CASE("PmuCounter move semantics", "[collection][PmuCounter]")
 
     int original_fd = counter1->fileDescriptor();
 
-    // Move construct
     PmuCounter counter2 = std::move(*counter1);
     REQUIRE(counter2.isValid());
     REQUIRE(counter2.fileDescriptor() == original_fd);
     REQUIRE_FALSE(counter1->isValid());
 
-    // Move assign
     auto counter3 = PmuCounter::create(PmuEventType::kInstructions);
     REQUIRE(counter3.has_value());
 
@@ -160,7 +154,6 @@ TEST_CASE("PmuCounter read returns value", "[collection][PmuCounter]")
     auto enable_result = counter->enable();
     REQUIRE(enable_result.has_value());
 
-    // Do some work to accumulate cycles
     volatile std::uint64_t sum = 0;
     for (std::uint64_t i = 0; i < 100000; ++i)
     {
@@ -168,7 +161,6 @@ TEST_CASE("PmuCounter read returns value", "[collection][PmuCounter]")
     }
     (void)sum;
 
-    // Disable and read
     auto disable_result = counter->disable();
     REQUIRE(disable_result.has_value());
 
@@ -234,7 +226,6 @@ TEST_CASE("PmuCounter operations on invalid counter fail", "[collection][PmuCoun
     auto counter = PmuCounter::create(PmuEventType::kCycles);
     REQUIRE(counter.has_value());
 
-    // Move the counter to invalidate it
     PmuCounter moved = std::move(*counter);
 
     SECTION("read on invalid counter fails")

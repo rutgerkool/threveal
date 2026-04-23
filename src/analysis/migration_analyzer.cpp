@@ -127,7 +127,7 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
     double ipc_delta = sample_after->ipc() - sample_before->ipc();
     double cache_miss_delta = sample_after->llcMissRate() - sample_before->llcMissRate();
 
-    // Branch miss rate: misses per instruction (normalized for comparison)
+    // Branch miss rate: misses per instruction
     double branch_miss_before = (sample_before->instructions > 0)
                                     ? static_cast<double>(sample_before->branch_misses) /
                                           static_cast<double>(sample_before->instructions)
@@ -181,7 +181,7 @@ auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impa
         double confidence_sum = 0.0;
     };
 
-    // Use an array indexed by MigrationType enum value (0-4)
+    // Use an array indexed by MigrationType value
     constexpr std::size_t kTypeCount = 5;
     std::array<Accumulator, kTypeCount> accumulators{};
 
@@ -351,7 +351,6 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         });
     }
 
-    // Sort by total migrations descending for convenient consumption
     std::ranges::sort(result,
                       [](const ThreadStatistics& lhs, const ThreadStatistics& rhs)
                       {

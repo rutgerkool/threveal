@@ -37,21 +37,16 @@ struct MigrationImpact
 
     /**
      *  Change in Instructions Per Cycle across the migration boundary.
-     *  Negative values indicate performance degradation (fewer instructions
-     *  per cycle after migration).
      */
     double ipc_delta;
 
     /**
      *  Change in LLC miss rate across the migration boundary.
-     *  Positive values indicate increased cache pressure (more misses after
-     *  migration).
      */
     double cache_miss_delta;
 
     /**
      *  Change in branch miss rate across the migration boundary.
-     *  Positive values indicate increased branch mispredictions after migration.
      */
     double branch_miss_delta;
 
@@ -144,21 +139,16 @@ struct ThreadStatistics
 
     /**
      *  Average IPC loss observed on P to E migrations.
-     *  Negative values indicate performance degradation.
-     *  Zero if no P to E migrations occurred.
      */
     double avg_ipc_loss_on_p_to_e;
 
     /**
      *  Average IPC gain observed on E to P migrations.
-     *  Positive values indicate performance improvement.
-     *  Zero if no E to P migrations occurred.
      */
     double avg_ipc_gain_on_e_to_p;
 
     /**
      *  Average LLC miss rate delta across all cross-type migrations.
-     *  Positive values indicate cache state destruction on migration.
      */
     double avg_cache_miss_delta;
 };
@@ -201,7 +191,7 @@ class MigrationAnalyzer
 {
   public:
     /**
-     *  Maximum time gap (in nanoseconds) between a migration and a PMU sample
+     *  Maximum time gap in ns between a migration and a PMU sample
      *  for the sample to be considered relevant.
      */
     static constexpr std::uint64_t kDefaultMaxSampleGapNs = 10'000'000;

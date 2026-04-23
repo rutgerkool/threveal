@@ -208,7 +208,6 @@ TEST_CASE("MigrationAnalyzer confidence is zero beyond max gap", "[analysis][Mig
     EventStore store;
     auto topology = makeTestTopology();
 
-    // 15ms gap exceeds default 10ms max
     store.addPmuSample(makeHighPerfSample(0, 42, 0));
     store.addMigration(makeMigration(15'000'000, 42, 0, 12));
     store.addPmuSample(makeLowPerfSample(16'000'000, 42, 12));
@@ -226,7 +225,6 @@ TEST_CASE("MigrationAnalyzer respects custom max sample gap", "[analysis][Migrat
     EventStore store;
     auto topology = makeTestTopology();
 
-    // 5ms gap on each side
     store.addPmuSample(makeHighPerfSample(0, 42, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
     store.addPmuSample(makeLowPerfSample(10'000'000, 42, 12));
@@ -284,7 +282,6 @@ TEST_CASE("MigrationAnalyzer handles samples from wrong thread", "[analysis][Mig
     EventStore store;
     auto topology = makeTestTopology();
 
-    // Samples belong to thread 99, migration is for thread 42
     store.addPmuSample(makeHighPerfSample(4'000'000, 99, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
     store.addPmuSample(makeLowPerfSample(6'000'000, 99, 12));
@@ -320,7 +317,6 @@ TEST_CASE("MigrationAnalyzer min confidence controls aggregation", "[analysis][M
     EventStore store;
     auto topology = makeTestTopology();
 
-    // 5ms gap on each side
     store.addPmuSample(makeHighPerfSample(0, 42, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
     store.addPmuSample(makeLowPerfSample(10'000'000, 42, 12));
@@ -401,7 +397,6 @@ TEST_CASE("MigrationAnalyzer aggregates by thread", "[analysis][MigrationAnalyze
     EventStore store;
     auto topology = makeTestTopology();
 
-    // Thread 42: two P to E migrations
     store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
     store.addMigration(makeMigration(1'000'000, 42, 0, 12));
     store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
@@ -410,7 +405,6 @@ TEST_CASE("MigrationAnalyzer aggregates by thread", "[analysis][MigrationAnalyze
     store.addMigration(makeMigration(2'000'000, 42, 0, 13));
     store.addPmuSample(makeLowPerfSample(2'100'000, 42, 13));
 
-    // Thread 43: one E to P migration
     store.addPmuSample(makeLowPerfSample(2'900'000, 43, 12));
     store.addMigration(makeMigration(3'000'000, 43, 12, 0));
     store.addPmuSample(makeHighPerfSample(3'100'000, 43, 0));

@@ -41,7 +41,6 @@ auto makeStats(std::uint32_t tid, std::uint32_t total, std::uint32_t p_to_e, std
     return s;
 }
 
-/// One second profiling window expressed in nanoseconds.
 constexpr std::uint64_t kOneSecondNs = 1'000'000'000ULL;
 
 }  // namespace
@@ -59,7 +58,6 @@ TEST_CASE("RecommendationEngine returns kNone for thread with too few migrations
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // 4 migrations < default minimum of 5
     auto stats = makeStats(42, 4, 2, 0, 2, 0, -0.5);
     auto results = engine.analyze({stats});
 
@@ -74,7 +72,6 @@ TEST_CASE("RecommendationEngine uses configurable minimum migrations",
     RecommendationEngine engine(kOneSecondNs);
     engine.setMinMigrations(10);
 
-    // 8 migrations < custom minimum of 10
     auto stats = makeStats(42, 8, 5, 0, 3, 0, -0.5);
     auto results = engine.analyze({stats});
 
@@ -86,7 +83,6 @@ TEST_CASE("RecommendationEngine recommends kPinToPCores for high P→E fraction 
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // 50% P to E migrations with -0.5 IPC loss
     auto stats = makeStats(42, 10, 5, 0, 5, 0, -0.5);
     auto results = engine.analyze({stats});
 
@@ -100,7 +96,6 @@ TEST_CASE("RecommendationEngine does NOT recommend kPinToPCores when IPC loss is
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // High P to E fraction but low IPC loss
     auto stats = makeStats(42, 10, 5, 0, 5, 0, -0.05);
     auto results = engine.analyze({stats});
 
@@ -112,7 +107,6 @@ TEST_CASE("RecommendationEngine does NOT recommend kPinToPCores when P→E fract
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // 10% P to E migrations but high IPC loss
     auto stats = makeStats(42, 10, 1, 0, 9, 0, -0.5);
     auto results = engine.analyze({stats});
 
@@ -127,11 +121,9 @@ TEST_CASE("RecommendationEngine respects custom IPC loss threshold",
 
     auto stats = makeStats(42, 10, 5, 0, 5, 0, -0.20);
 
-    // -0.20 is above the -0.30 threshold, so should NOT recommend P-core pinning
     auto results = engine.analyze({stats});
     REQUIRE(results[0].recommendation != AffinityRecommendation::kPinToPCores);
 
-    // -0.40 is below the -0.30 threshold, so should recommend P-core pinning
     stats.avg_ipc_loss_on_p_to_e = -0.40;
     results = engine.analyze({stats});
     REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToPCores);
@@ -140,10 +132,8 @@ TEST_CASE("RecommendationEngine respects custom IPC loss threshold",
 TEST_CASE("RecommendationEngine recommends kReduceMigrations for very high migration rate",
           "[analysis][RecommendationEngine]")
 {
-    // 200 migrations in 1 second > default 100 threshold
     RecommendationEngine engine(kOneSecondNs);
 
-    // Use p_to_p only
     auto stats = makeStats(42, 200, 0, 0, 200, 0);
     auto results = engine.analyze({stats});
 
@@ -157,7 +147,6 @@ TEST_CASE("RecommendationEngine respects custom high migration rate threshold",
     RecommendationEngine engine(kOneSecondNs);
     engine.setHighMigrationRate(50.0);
 
-    // 60 migrations per second > custom 50 threshold
     auto stats = makeStats(42, 60, 0, 0, 60, 0);
     auto results = engine.analyze({stats});
 
@@ -167,14 +156,12 @@ TEST_CASE("RecommendationEngine respects custom high migration rate threshold",
 TEST_CASE("RecommendationEngine computes migration rate correctly",
           "[analysis][RecommendationEngine]")
 {
-    // 500ms window, 50 migrations, so 100 migrations per second exactly on the boundary
     constexpr std::uint64_t kHalfSecondNs = 500'000'000ULL;
     RecommendationEngine engine(kHalfSecondNs);
 
     auto stats = makeStats(42, 50, 0, 0, 50, 0);
     auto results = engine.analyze({stats});
 
-    // 50 / 0.5 sec = 100 migrations per second, so right at the threshold, not above
     REQUIRE(results[0].migration_rate_per_second == Catch::Approx(100.0));
 }
 
@@ -195,7 +182,6 @@ TEST_CASE("RecommendationEngine recommends kPinToECores when thread is mostly on
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // Thread keeps getting pulled to P-cores (e_to_p=2) but gains nothing from it
     auto stats = makeStats(42, 10, 2, 2, 0, 6, 0.0, 0.02);
     auto results = engine.analyze({stats});
 
@@ -208,7 +194,6 @@ TEST_CASE("RecommendationEngine does NOT recommend kPinToECores when P-cores giv
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // High E-core fraction but meaningful IPC gain on E to P (0.5 > threshold 0.10)
     auto stats = makeStats(42, 10, 2, 0, 0, 8, 0.0, 0.5);
     auto results = engine.analyze({stats});
 
@@ -220,7 +205,6 @@ TEST_CASE("RecommendationEngine does NOT recommend kPinToECores when E-core frac
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // Only 20% E-core activity (below 50% threshold)
     auto stats = makeStats(42, 10, 2, 0, 8, 0, 0.0, 0.0);
     auto results = engine.analyze({stats});
 
@@ -244,7 +228,6 @@ TEST_CASE("RecommendationEngine returns kNone for clean P-only profile",
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // All P to P migrations, no cross-type activity, low rate
     auto stats = makeStats(42, 10, 0, 0, 10, 0);
     auto results = engine.analyze({stats});
 
@@ -257,7 +240,6 @@ TEST_CASE("RecommendationEngine returns kNone for clean E-only profile",
 {
     RecommendationEngine engine(kOneSecondNs);
 
-    // All E to E migrations, no cross-type activity, low rate
     auto stats = makeStats(42, 10, 0, 0, 0, 10);
     auto results = engine.analyze({stats});
 
@@ -270,14 +252,8 @@ TEST_CASE("RecommendationEngine processes multiple threads independently",
     RecommendationEngine engine(kOneSecondNs);
 
     std::vector<ThreadStatistics> stats = {
-
-        // Thread 1: should get kPinToPCores
         makeStats(1, 10, 5, 0, 5, 0, -0.5),
-
-        // Thread 2: clean P to P profile
         makeStats(2, 10, 0, 0, 10, 0),
-
-        // Thread 3: too few migrations
         makeStats(3, 2, 1, 0, 1, 0),
     };
 
@@ -295,23 +271,11 @@ TEST_CASE("RecommendationEngine always provides a non-empty explanation",
     RecommendationEngine engine(kOneSecondNs);
 
     std::vector<ThreadStatistics> all_cases = {
-
-        // Insufficient data
         makeStats(1, 2, 1, 0, 1, 0),
-
-        // kPinToPCores
         makeStats(2, 10, 5, 0, 5, 0, -0.5),
-
-        // kReduceMigrations
         makeStats(3, 200, 0, 0, 200, 0),
-
-        // kPinToECores
         makeStats(4, 10, 2, 2, 0, 6, 0.0, 0.02),
-
-        // kInvestigateFurther
         makeStats(5, 10, 1, 1, 8, 0, -0.05, 0.05),
-
-        // kNone
         makeStats(6, 10, 0, 0, 10, 0),
     };
 

@@ -44,14 +44,14 @@ class PmuCounter
     /**
      *  Move constructor.
      *
-     *  @param      other  Counter to move from (will be invalidated).
+     *  @param      other  Counter to move from
      */
     PmuCounter(PmuCounter&& other) noexcept;
 
     /**
      *  Move assignment operator.
      *
-     *  @param      other  Counter to move from (will be invalidated).
+     *  @param      other  Counter to move from
      *  @return     Reference to this counter.
      */
     auto operator=(PmuCounter&& other) noexcept -> PmuCounter&;

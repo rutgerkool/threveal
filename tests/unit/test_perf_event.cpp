@@ -30,7 +30,7 @@ namespace
 namespace fs = std::filesystem;
 
 /**
- *  Temporary stand-in for /sys/bus/event_source/devices, removed on destruction.
+ *  Temporary stand-in for /sys/bus/event_source/devices
  */
 class FakeEventSourceDir
 {

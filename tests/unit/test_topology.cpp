@@ -124,7 +124,6 @@ TEST_CASE("parseCpuList parses mixed format", "[topology][parseCpuList]")
 
     SECTION("typical hybrid CPU format - i7-13700H style")
     {
-        // P-cores: 0-11, E-cores: 12-19
         auto p_cores = parseCpuList("0-11");
         REQUIRE(p_cores.has_value());
         REQUIRE(p_cores->size() == 12);
@@ -286,7 +285,6 @@ TEST_CASE("TopologyMap getCoreType classification", "[topology][TopologyMap]")
 
     SECTION("gap CPUs return error")
     {
-        // CPU 5 is between P-cores and E-cores, not in either list
         auto result = map.getCoreType(5);
         REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error() == TopologyError::kInvalidCpuId);
@@ -350,7 +348,6 @@ TEST_CASE("TopologyMap handles realistic i7-13700H topology", "[topology][Topolo
     REQUIRE(map.isHybrid() == true);
     REQUIRE(map.totalCpuCount() == 20);
 
-    // Verify all P-cores
     for (CpuId cpu = 0; cpu <= 11; ++cpu)
     {
         auto result = map.getCoreType(cpu);
@@ -358,7 +355,6 @@ TEST_CASE("TopologyMap handles realistic i7-13700H topology", "[topology][Topolo
         REQUIRE(*result == CoreType::kPCore);
     }
 
-    // Verify all E-cores
     for (CpuId cpu = 12; cpu <= 19; ++cpu)
     {
         auto result = map.getCoreType(cpu);
@@ -476,7 +472,6 @@ TEST_CASE("parseCoreType rejects invalid input", "[topology][parseCoreType]")
 
 TEST_CASE("TopologyMap isSmtSibling without SMT data", "[topology][TopologyMap][smt]")
 {
-    // When constructed directly (not via loadFromSysfs), SMT data is unavailable
     std::vector<CpuId> p_cores = {0, 1, 2, 3};
     std::vector<CpuId> e_cores = {4, 5, 6, 7};
 

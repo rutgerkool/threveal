@@ -63,14 +63,12 @@ auto PmuCounter::create(PmuEventType event, pid_t tid, int cpu)
 {
     auto attr = makeEventAttr(event);
 
-    // Open the perf_event file descriptor
     pid_t effective_tid = (tid == -1) ? 0 : tid;
 
     int fd = perfEventOpen(&attr, effective_tid, cpu, -1, 0);
 
     if (fd < 0)
     {
-        // perf_event_open failed, convert errno to our error type
         return std::unexpected(errnoToPmuError(errno));
     }
 
@@ -110,7 +108,6 @@ auto PmuCounter::read() const -> std::expected<std::uint64_t, core::PmuError>
 
 auto PmuCounter::reset() const -> std::expected<void, core::PmuError>
 {
-    // Zeros the counter; it keeps its current enabled/disabled state
     return ioctlAll(PERF_EVENT_IOC_RESET);
 }
 

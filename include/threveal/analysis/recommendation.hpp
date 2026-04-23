@@ -24,7 +24,7 @@ namespace threveal::analysis
 enum class AffinityRecommendation : std::uint8_t
 {
     /**
-     *  No action needed; migration activity is below concern thresholds.
+     *  No action needed, migration activity is below concern thresholds.
      */
     kNone = 0,
 
@@ -126,7 +126,7 @@ class RecommendationEngine
     static constexpr std::uint32_t kDefaultMinMigrations = 5;
 
     /**
-     *  IPC loss threshold (negative) for recommending P-core pinning.
+     *  IPC loss threshold for recommending P-core pinning.
      */
     static constexpr double kDefaultIpcLossThreshold = -0.10;
 
@@ -136,7 +136,7 @@ class RecommendationEngine
     static constexpr double kDefaultPToEFractionThreshold = 0.30;
 
     /**
-     *  Migration rate (migrations/second) above which reduction is recommended.
+     *  Migration rate above which reduction is recommended.
      */
     static constexpr double kDefaultHighMigrationRate = 100.0;
 
@@ -177,14 +177,14 @@ class RecommendationEngine
      *  Sets the IPC loss threshold for recommending P-core pinning.
      *
      *  @param      threshold  Negative IPC delta below which a P→E migration
-     *                          is considered harmful (e.g. −0.10).
+     *                          is considered harmful
      */
     void setIpcLossThreshold(double threshold) noexcept;
 
     /**
      *  Sets the migration rate threshold above which reduction is recommended.
      *
-     *  @param      rate_per_sec  Migrations per second (e.g. 100.0).
+     *  @param      rate_per_sec  Migrations per second
      */
     void setHighMigrationRate(double rate_per_sec) noexcept;
 

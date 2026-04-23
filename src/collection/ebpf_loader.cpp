@@ -74,7 +74,6 @@ auto EbpfLoader::operator=(EbpfLoader&& other) noexcept -> EbpfLoader&
         detach();
     }
 
-    // Take ownership (old skel_ automatically destroyed by unique_ptr)
     skel_ = std::move(other.skel_);
     attached_ = std::exchange(other.attached_, false);
 

@@ -19,7 +19,6 @@ namespace threveal::analysis
 namespace
 {
 
-/// Nanoseconds per second as a floating-point constant.
 constexpr double kNsPerSec = 1.0e9;
 
 }  // namespace
@@ -47,7 +46,6 @@ void RecommendationEngine::setHighMigrationRate(double rate_per_sec) noexcept
 auto RecommendationEngine::computeMigrationRate(std::uint32_t total_migrations) const noexcept
     -> double
 {
-    // Guard against zero duration to avoid division by zero
     if (profiling_duration_ns_ == 0)
     {
         return 0.0;
@@ -73,8 +71,6 @@ auto RecommendationEngine::analyze(const std::vector<ThreadStatistics>& thread_s
 
 auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> ThreadRecommendation
 {
-    // --- Pre-compute derived metrics used across multiple rules ---
-
     double rate = computeMigrationRate(stats.total_migrations);
 
     // Fraction of migrations that move the thread from P-core to E-core

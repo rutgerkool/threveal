@@ -18,7 +18,6 @@
 namespace threveal::core
 {
 
-// Forward declaration to avoid circular dependency
 class TopologyMap;
 
 /**
@@ -42,12 +41,12 @@ enum class MigrationType : std::uint8_t
     kPToP = 1,
 
     /**
-     *  Migration from P-core to E-core (potential performance degradation).
+     *  Migration from P-core to E-core
      */
     kPToE = 2,
 
     /**
-     *  Migration from E-core to P-core (potential performance improvement).
+     *  Migration from E-core to P-core
      */
     kEToP = 3,
 
@@ -87,7 +86,7 @@ enum class MigrationType : std::uint8_t
 struct MigrationEvent
 {
     /**
-     *  Timestamp when the migration occurred (nanoseconds since boot).
+     *  Timestamp when the migration occurred
      */
     std::uint64_t timestamp_ns;
 
@@ -102,24 +101,24 @@ struct MigrationEvent
     std::uint32_t tid;
 
     /**
-     *  Source CPU ID (where the task was running before migration).
+     *  Source CPU ID
      */
     CpuId src_cpu;
 
     /**
-     *  Destination CPU ID (where the task is running after migration).
+     *  Destination CPU ID
      */
     CpuId dst_cpu;
 
     /**
-     *  Command name of the migrated task (may be truncated).
+     *  Command name of the migrated task
      */
     std::array<char, kMaxCommLength> comm;
 
     /**
      *  Returns the command name as a string view.
      *
-     *  @return     A string view of the command name (null-terminated).
+     *  @return     A string view of the command name
      */
     [[nodiscard]] auto commAsStringView() const noexcept -> std::string_view
     {
@@ -135,7 +134,7 @@ struct MigrationEvent
 struct PmuSample
 {
     /**
-     *  Timestamp when the sample was collected (nanoseconds since boot).
+     *  Timestamp when the sample was collected
      */
     std::uint64_t timestamp_ns;
 
@@ -175,7 +174,7 @@ struct PmuSample
     std::uint64_t branch_misses;
 
     /**
-     *  Computes the Instructions Per Cycle (IPC) for this sample.
+     *  Computes the IPC for this sample.
      *
      *  @return     IPC value, or 0.0 if cycles is zero.
      */
@@ -191,7 +190,7 @@ struct PmuSample
     /**
      *  Computes the LLC miss rate for this sample.
      *
-     *  @return     Miss rate (0.0 to 1.0), or 0.0 if no references.
+     *  @return     Miss rate, or 0.0 if no references.
      */
     [[nodiscard]] constexpr auto llcMissRate() const noexcept -> double
     {

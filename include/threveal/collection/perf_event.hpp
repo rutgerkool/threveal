@@ -31,7 +31,7 @@ inline constexpr std::string_view kEventSourceDir = "/sys/bus/event_source/devic
 inline constexpr std::uint32_t kDefaultPmuType = 0;
 
 /**
- *  Maximum number of core PMUs a CPU exposes (cpu_core and cpu_atom on hybrid Intel).
+ *  Maximum number of core PMUs a CPU exposes
  */
 inline constexpr std::size_t kMaxCorePmus = 2;
 
@@ -56,22 +56,16 @@ enum class PmuEventType : std::uint8_t
 
     /**
      *  Last-level cache load references.
-     *
-     *  Maps to PERF_COUNT_HW_CACHE_LL | PERF_COUNT_HW_CACHE_OP_READ | ACCESS.
      */
     kLlcLoads = 2,
 
     /**
      *  Last-level cache load misses.
-     *
-     *  Maps to PERF_COUNT_HW_CACHE_LL | PERF_COUNT_HW_CACHE_OP_READ | MISS.
      */
     kLlcLoadMisses = 3,
 
     /**
      *  Branch mispredictions.
-     *
-     *  Maps to PERF_COUNT_HW_BRANCH_MISSES.
      */
     kBranchMisses = 4,
 };

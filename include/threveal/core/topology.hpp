@@ -42,7 +42,7 @@ class TopologyMap
     /**
      *  Retrieves the core type for a given CPU ID.
      *
-     *  @param      cpu_id  The logical CPU identifier (0-based).
+     *  @param      cpu_id  The logical CPU identifier
      *  @return     The core type on success, or TopologyError::kInvalidCpuId
      *              if the CPU ID is out of range.
      */
@@ -65,7 +65,7 @@ class TopologyMap
     /**
      *  Returns the total number of CPUs in the topology.
      *
-     *  @return     The count of all CPUs (P-cores + E-cores).
+     *  @return     The count of all CPUs
      */
     [[nodiscard]] auto totalCpuCount() const noexcept -> std::size_t;
 
@@ -114,7 +114,7 @@ class TopologyMap
 /**
  *  Parses a CPU list string in sysfs format.
  *
- *  @param      content  The CPU list string to parse (e.g., "0-5,12-19").
+ *  @param      content  The CPU list string to parse
  *  @return     A vector of CPU IDs on success, or TopologyError::kParseError
  *              if the format is invalid.
  */
@@ -124,7 +124,7 @@ class TopologyMap
 /**
  *  Parses a core_type sysfs string to determine the core type.
  *
- *  @param      content  The core_type string to parse (e.g., "Core", "Atom").
+ *  @param      content  The core_type string to parse
  *  @return     The CoreType on success, or TopologyError::kParseError
  *              if the format is not recognized.
  */

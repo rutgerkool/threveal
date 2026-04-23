@@ -55,8 +55,6 @@ namespace
 /**
  *  Parses a single unsigned integer from a string view.
  *
- *  Uses std::from_chars for efficient, locale-independent parsing.
- *
  *  @param      str  The string containing the number to parse.
  *  @return     The parsed CpuId on success, or TopologyError::kParseError
  *              if the string is not a valid unsigned integer.
@@ -130,7 +128,7 @@ namespace
         return std::unexpected(end.error());
     }
 
-    // Reject invalid ranges like "5-3"
+    // Reject invalid ranges
     if (*start > *end)
     {
         return std::unexpected(TopologyError::kParseError);
@@ -179,7 +177,7 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
 }
 
 /**
- *  Loads topology using per-CPU core_type files (Linux 5.18+).
+ *  Loads topology using per-CPU core_type files
  *
  *  @return     A populated TopologyMap on success, or TopologyError
  *              indicating why detection failed.
@@ -200,7 +198,6 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
 
     for (const auto& entry : dir_iter)
     {
-        // Skip non-directories
         if (!entry.is_directory(ec) || ec)
         {
             continue;
@@ -227,18 +224,15 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
         auto core_type_content = readFileContents(core_type_path.string());
         if (!core_type_content)
         {
-            // core_type not available for this CPU
             continue;
         }
 
         auto core_type = parseCoreType(*core_type_content);
         if (!core_type)
         {
-            // Unknown core type string
             continue;
         }
 
-        // Classify the CPU
         if (*core_type == CoreType::kPCore)
         {
             p_cores.push_back(*cpu_id);
@@ -249,7 +243,6 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
         }
     }
 
-    // Validate that we found CPUs
     if (p_cores.empty() && e_cores.empty())
     {
         return std::unexpected(TopologyError::kSysfsNotFound);
@@ -261,7 +254,6 @@ constexpr std::string_view kCpuBasePath = "/sys/devices/system/cpu";
         return std::unexpected(TopologyError::kNotHybridCpu);
     }
 
-    // Sort for consistent ordering
     std::ranges::sort(p_cores);
     std::ranges::sort(e_cores);
 
@@ -321,7 +313,6 @@ auto TopologyMap::isSmtSibling(CpuId cpu_a, CpuId cpu_b) const noexcept -> bool
         return false;
     }
 
-    // Bounds check
     if (cpu_a >= physical_core_id_.size() || cpu_b >= physical_core_id_.size())
     {
         return false;
@@ -339,7 +330,7 @@ auto TopologyMap::isSmtSibling(CpuId cpu_a, CpuId cpu_b) const noexcept -> bool
 
 auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
 {
-    // Primary method: use cpu_core/cpu_atom sysfs entries (Linux 5.13+)
+    // Primary method: use cpu_core/cpu_atom sysfs entries
     auto p_core_content = readFileContents(kPCoreSysfsPath);
     if (p_core_content)
     {
@@ -353,7 +344,7 @@ auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
         auto e_core_content = readFileContents(kECoreSysfsPath);
         if (!e_core_content)
         {
-            // P-cores exist but E-cores don't - not a hybrid CPU
+            // P-cores exist but E-cores don't
             return std::unexpected(TopologyError::kNotHybridCpu);
         }
 
@@ -368,7 +359,7 @@ auto TopologyMap::loadFromSysfs() -> std::expected<TopologyMap, TopologyError>
         return map;
     }
 
-    // Fallback: use per-CPU core_type files (Linux 5.18+)
+    // Fallback: use per-CPU core_type files
     auto fallback_result = loadFromCoreType();
     if (fallback_result)
     {
@@ -391,16 +382,13 @@ void TopologyMap::buildLookupTable()
         max_cpu = std::max(max_cpu, cpu);
     }
 
-    // Resize lookup table to accommodate all CPU IDs (0 to max_cpu inclusive)
     cpu_to_type_.resize(max_cpu + 1, CoreType::kUnknown);
 
-    // Populate P-core entries
     for (CpuId cpu : p_cores_)
     {
         cpu_to_type_[cpu] = CoreType::kPCore;
     }
 
-    // Populate E-core entries
     for (CpuId cpu : e_cores_)
     {
         cpu_to_type_[cpu] = CoreType::kECore;
@@ -460,10 +448,7 @@ auto parseCpuList(std::string_view content) -> std::expected<std::vector<CpuId>,
     // Iterate through comma-separated elements
     while (pos < content.size())
     {
-        // Find next comma delimiter
         auto comma_pos = content.find(',', pos);
-
-        // Extract substring from pos to comma (or end of string)
         auto element = (comma_pos == std::string_view::npos) ? content.substr(pos)
                                                              : content.substr(pos, comma_pos - pos);
 
@@ -478,10 +463,8 @@ auto parseCpuList(std::string_view content) -> std::expected<std::vector<CpuId>,
             break;
         }
 
-        // Move past the comma to start of next element
         pos = comma_pos + 1;
 
-        // Check for trailing comma (nothing after the comma)
         if (pos >= content.size())
         {
             return std::unexpected(TopologyError::kParseError);

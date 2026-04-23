@@ -81,7 +81,6 @@ PmuGroup::PmuGroup(std::array<int, kCounterCount> fds) noexcept : fds_(fds) {}
 
 PmuGroup::~PmuGroup()
 {
-    // Release all PMU resources
     closeAll();
 }
 
@@ -98,7 +97,6 @@ auto PmuGroup::operator=(PmuGroup&& other) noexcept -> PmuGroup&
         // Release our current resources first
         closeAll();
 
-        // Take ownership
         fds_ = other.fds_;
 
         // Invalidate source
@@ -153,10 +151,8 @@ auto PmuGroup::read() const -> std::expected<PmuGroupReading, core::PmuError>
 
     GroupReadFormat data{};
 
-    // Read from leader gets all values atomically
     ssize_t bytes_read = ::read(fds_[kCycles], &data, sizeof(data));
 
-    // Check for read failure
     if (bytes_read < 0)
     {
         return std::unexpected(core::PmuError::kReadFailed);
@@ -174,7 +170,6 @@ auto PmuGroup::read() const -> std::expected<PmuGroupReading, core::PmuError>
         return std::unexpected(core::PmuError::kReadFailed);
     }
 
-    // Map values to struct (order matches CounterIndex enum)
     return PmuGroupReading{
         .cycles = data.values[kCycles],
         .instructions = data.values[kInstructions],
@@ -223,7 +218,7 @@ auto PmuGroup::disable() const -> std::expected<void, core::PmuError>
         return std::unexpected(core::PmuError::kInvalidState);
     }
 
-    // FLAG_GROUP disables all members; values preserved for reading
+    // FLAG_GROUP disables all members
     if (ioctl(fds_[kCycles], PERF_EVENT_IOC_DISABLE, PERF_IOC_FLAG_GROUP) < 0)
     {
         return std::unexpected(core::PmuError::kInvalidState);

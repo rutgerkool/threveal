@@ -61,13 +61,11 @@ auto MigrationTracker::operator=(MigrationTracker&& other) noexcept -> Migration
         return *this;
     }
 
-    // Clean up current resources
     if (running_)
     {
         stop();
     }
 
-    // Take ownership
     loader_ = std::move(other.loader_);
     ring_buf_ = std::move(other.ring_buf_);
     callback_ = std::move(other.callback_);
@@ -99,8 +97,6 @@ auto MigrationTracker::create(MigrationCallback callback)
         return std::unexpected(EbpfError::kMapAccessFailed);
     }
 
-    // Create ring buffer consumer with nullptr context initially
-    // The context will be set via the callback closure
     RingBufferPtr ring_buf{ring_buffer__new(ring_fd, ringBufferCallback, nullptr, nullptr)};
     if (!ring_buf)
     {
@@ -114,7 +110,7 @@ auto MigrationTracker::start() -> std::expected<void, EbpfError>
 {
     if (running_)
     {
-        return {};  // Already running
+        return {};
     }
 
     auto result = loader_.attach();
@@ -189,7 +185,6 @@ auto MigrationTracker::ringBufferCallback(void* ctx, void* data, std::size_t siz
     event.src_cpu = raw_event->src_cpu;
     event.dst_cpu = raw_event->dst_cpu;
 
-    // Copy command name from BPF event
     std::memcpy(event.comm.data(), raw_event->comm,
                 std::min(sizeof(event.comm), sizeof(raw_event->comm)));
 

@@ -15,7 +15,6 @@
 #include <memory>
 #include <string_view>
 
-// Forward declaration of the generated skeleton structure (name from libbpf)
 struct migration_tracker_bpf;
 
 namespace threveal::collection
@@ -23,9 +22,6 @@ namespace threveal::collection
 
 /**
  *  Custom deleter for libbpf skeleton objects.
- *
- *  Calls the libbpf-generated destroy function to release all
- *  BPF resources associated with the skeleton.
  */
 struct BpfSkeletonDeleter
 {
@@ -68,7 +64,7 @@ enum class EbpfError : std::uint8_t
     kMapAccessFailed = 5,
 
     /**
-     *  Permission denied (requires CAP_BPF or root).
+     *  Permission denied
      */
     kPermissionDenied = 6,
 };
@@ -117,7 +113,6 @@ class EbpfLoader
      */
     ~EbpfLoader();
 
-    // Move-only semantics
     EbpfLoader(EbpfLoader&& other) noexcept;
     auto operator=(EbpfLoader&& other) noexcept -> EbpfLoader&;
     EbpfLoader(const EbpfLoader&) = delete;
@@ -145,8 +140,6 @@ class EbpfLoader
 
     /**
      *  Returns the file descriptor for the events ring buffer.
-     *
-     *  This fd can be used with ring_buffer__new() to consume events.
      *
      *  @return     The ring buffer fd, or -1 if not valid.
      */

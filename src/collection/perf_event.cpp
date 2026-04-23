@@ -62,7 +62,7 @@ auto makeHardwareEventAttr(std::uint64_t config, std::uint32_t pmu_type) -> perf
     // Required for kernel version compatibility
     attr.size = sizeof(attr);
 
-    // The specific hardware event (cycles, instructions, etc.)
+    // The hardware event
     attr.config = config | encodePmuType(pmu_type);
 
     // Start disabled so caller can set up multiple counters before enabling
@@ -149,7 +149,7 @@ auto makeEventAttr(PmuEventType event, std::uint32_t pmu_type) -> perf_event_att
 
         case PmuEventType::kLlcLoads:
 
-            // Last-level cache read accesses (hits + misses)
+            // Last-level cache read accesses
             return makeCacheEventAttr(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
                                       PERF_COUNT_HW_CACHE_RESULT_ACCESS, pmu_type);
 
@@ -179,7 +179,6 @@ auto errnoToPmuError(int err) noexcept -> core::PmuError
         case EOPNOTSUPP:
 
             // The requested event is not available on this CPU or kernel.
-            // This can happen with cache events on some microarchitectures.
             return core::PmuError::kEventNotSupported;
 
         case ESRCH:

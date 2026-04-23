@@ -143,12 +143,10 @@ TEST_CASE("PmuGroup move semantics", "[collection][PmuGroup]")
 
     REQUIRE(group1->isValid());
 
-    // Move construct
     PmuGroup group2 = std::move(*group1);
     REQUIRE(group2.isValid());
     REQUIRE_FALSE(group1->isValid());
 
-    // Move assign
     auto group3 = PmuGroup::create();
     if (!group3.has_value())
     {
@@ -241,7 +239,6 @@ TEST_CASE("PmuGroup operations on invalid group fail", "[collection][PmuGroup]")
         SKIP("PMU group creation failed");
     }
 
-    // Move the group to invalidate it
     PmuGroup moved = std::move(*group);
 
     SECTION("read on invalid group fails")

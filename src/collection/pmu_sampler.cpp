@@ -74,7 +74,6 @@ PmuSampler::PmuSampler(pid_t tid, PmuGroup group, SampleCallback callback,
 
 PmuSampler::~PmuSampler()
 {
-    // Ensure sampling thread is stopped before destroying members
     stop();
 }
 
@@ -87,7 +86,6 @@ PmuSampler::PmuSampler(PmuSampler&& other) noexcept
       sample_count_(other.sample_count_.load()),
       running_(other.running_.load())
 {
-    // Invalidate source
     other.tid_ = 0;
     other.sample_count_ = 0;
     other.running_ = false;
@@ -97,7 +95,6 @@ auto PmuSampler::operator=(PmuSampler&& other) noexcept -> PmuSampler&
 {
     if (this != &other)
     {
-        // Stop our current sampling thread before taking ownership
         stop();
 
         tid_ = other.tid_;
@@ -108,7 +105,6 @@ auto PmuSampler::operator=(PmuSampler&& other) noexcept -> PmuSampler&
         sample_count_ = other.sample_count_.load();
         running_ = other.running_.load();
 
-        // Invalidate source
         other.tid_ = 0;
         other.sample_count_ = 0;
         other.running_ = false;
@@ -119,7 +115,6 @@ auto PmuSampler::operator=(PmuSampler&& other) noexcept -> PmuSampler&
 auto PmuSampler::create(pid_t tid, SampleCallback callback, std::chrono::microseconds interval)
     -> std::expected<PmuSampler, core::PmuError>
 {
-    // Validate callback is not empty
     if (!callback)
     {
         return std::unexpected(core::PmuError::kInvalidState);
@@ -240,7 +235,6 @@ void PmuSampler::samplingLoop(const std::stop_token& stop_token)
 
 auto PmuSampler::collectSample() -> bool
 {
-    // Read PMU counters atomically
     auto reading = group_.read();
     if (!reading)
     {
@@ -248,13 +242,10 @@ auto PmuSampler::collectSample() -> bool
         return false;
     }
 
-    // Get timestamp as close to the PMU read as possible
     auto timestamp = getTimestampNs();
 
-    // Get current CPU for the target thread
     auto cpu_id = getCurrentCpu();
 
-    // Build the PmuSample structure
     core::PmuSample sample{
         .timestamp_ns = timestamp,
         .tid = static_cast<std::uint32_t>(tid_),
@@ -266,7 +257,6 @@ auto PmuSampler::collectSample() -> bool
         .branch_misses = reading->branch_misses,
     };
 
-    // Deliver sample via callback
     callback_(sample);
 
     return true;

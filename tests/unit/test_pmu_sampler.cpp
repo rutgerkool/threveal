@@ -100,7 +100,6 @@ TEST_CASE("PmuSampler creation requires permissions", "[collection][PmuSampler]"
     }
     else
     {
-        // May still fail if LLC events not supported
         if (sampler.has_value())
         {
             REQUIRE_FALSE(sampler->isRunning());
@@ -136,7 +135,6 @@ TEST_CASE("PmuSampler enforces minimum interval", "[collection][PmuSampler]")
         collector.addSample(sample);
     };
 
-    // Request interval below minimum
     auto sampler = PmuSampler::create(0, callback, std::chrono::microseconds(10));
 
     if (!sampler.has_value())
@@ -144,7 +142,6 @@ TEST_CASE("PmuSampler enforces minimum interval", "[collection][PmuSampler]")
         SKIP("PMU group creation failed");
     }
 
-    // Should be clamped to minimum
     REQUIRE(sampler->interval() >= PmuSampler::kMinInterval);
 }
 
@@ -237,7 +234,6 @@ TEST_CASE("PmuSampler collects samples", "[collection][PmuSampler]")
         collector.addSample(sample);
     };
 
-    // Use 2ms interval for faster test
     auto sampler = PmuSampler::create(0, callback, std::chrono::milliseconds(2));
 
     if (!sampler.has_value())
@@ -248,7 +244,6 @@ TEST_CASE("PmuSampler collects samples", "[collection][PmuSampler]")
     auto start_result = sampler->start();
     REQUIRE(start_result.has_value());
 
-    // Do some work while sampling
     volatile std::uint64_t sum = 0;
     auto start_time = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(50))
@@ -262,11 +257,9 @@ TEST_CASE("PmuSampler collects samples", "[collection][PmuSampler]")
 
     sampler->stop();
 
-    // Should have collected some samples
     REQUIRE(collector.count() > 0);
     REQUIRE(sampler->sampleCount() == collector.count());
 
-    // Verify sample contents
     auto samples = collector.samples();
     for (const auto& sample : samples)
     {
@@ -299,7 +292,6 @@ TEST_CASE("PmuSampler samples have increasing timestamps", "[collection][PmuSamp
     auto start_result = sampler->start();
     REQUIRE(start_result.has_value());
 
-    // Let it run for a bit
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
     sampler->stop();
@@ -307,7 +299,6 @@ TEST_CASE("PmuSampler samples have increasing timestamps", "[collection][PmuSamp
     auto samples = collector.samples();
     REQUIRE(samples.size() >= 2);
 
-    // Verify timestamps are monotonically increasing
     for (std::size_t i = 1; i < samples.size(); ++i)
     {
         REQUIRE(samples[i].timestamp_ns > samples[i - 1].timestamp_ns);
@@ -390,11 +381,9 @@ TEST_CASE("PmuSampler destructor stops sampling", "[collection][PmuSampler]")
         REQUIRE(start_result.has_value());
         REQUIRE(sampler->isRunning());
 
-        // Let it collect a few samples
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
-    // If we get here without hanging, the destructor worked correctly
     REQUIRE(collector.count() > 0);
 }
 

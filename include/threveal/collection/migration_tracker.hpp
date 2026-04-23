@@ -19,7 +19,6 @@
 #include <memory>
 #include <optional>
 
-// Forward declaration for libbpf ring buffer
 struct ring_buffer;
 
 namespace threveal::collection
@@ -63,7 +62,6 @@ class MigrationTracker
      */
     ~MigrationTracker();
 
-    // Move-only semantics
     MigrationTracker(MigrationTracker&& other) noexcept;
     auto operator=(MigrationTracker&& other) noexcept -> MigrationTracker&;
     MigrationTracker(const MigrationTracker&) = delete;

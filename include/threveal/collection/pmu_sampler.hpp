@@ -38,12 +38,12 @@ class PmuSampler
     using SampleCallback = std::function<void(const core::PmuSample&)>;
 
     /**
-     *  Default sampling interval (1 millisecond).
+     *  Default sampling interval
      */
     static constexpr auto kDefaultInterval = std::chrono::milliseconds(1);
 
     /**
-     *  Minimum allowed sampling interval (100 microseconds).
+     *  Minimum allowed sampling interval
      */
     static constexpr auto kMinInterval = std::chrono::microseconds(100);
 
@@ -52,7 +52,7 @@ class PmuSampler
      *
      *  @param      tid       Thread ID to monitor (0 for calling thread).
      *  @param      callback  Function to receive PMU samples.
-     *  @param      interval  Time between samples (default: 1ms).
+     *  @param      interval  Time between samples
      *  @return     A PmuSampler on success, or PmuError on failure.
      */
     [[nodiscard]] static auto create(pid_t tid, SampleCallback callback,
@@ -67,14 +67,14 @@ class PmuSampler
     /**
      *  Move constructor.
      *
-     *  @param      other  Sampler to move from (will be invalidated).
+     *  @param      other  Sampler to move from
      */
     PmuSampler(PmuSampler&& other) noexcept;
 
     /**
      *  Move assignment operator.
      *
-     *  @param      other  Sampler to move from (will be invalidated).
+     *  @param      other  Sampler to move from
      *  @return     Reference to this sampler.
      */
     auto operator=(PmuSampler&& other) noexcept -> PmuSampler&;
@@ -125,7 +125,7 @@ class PmuSampler
 
   private:
     /**
-     *  Private constructor - use create() factory method.
+     *  Private constructor
      *
      *  @param      tid       Thread ID being monitored.
      *  @param      group     PMU counter group for the target thread.

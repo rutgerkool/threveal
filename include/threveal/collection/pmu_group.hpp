@@ -49,7 +49,7 @@ struct PmuGroupReading
     std::uint64_t branch_misses;
 
     /**
-     *  Computes Instructions Per Cycle (IPC).
+     *  Computes IPC
      *
      *  @return     IPC value, or 0.0 if cycles is zero.
      */
@@ -65,7 +65,7 @@ struct PmuGroupReading
     /**
      *  Computes the LLC miss rate.
      *
-     *  @return     Miss rate (0.0 to 1.0), or 0.0 if no references.
+     *  @return     Miss rate, or 0.0 if no references.
      */
     [[nodiscard]] constexpr auto llcMissRate() const noexcept -> double
     {
@@ -159,7 +159,7 @@ class PmuGroup
 
   private:
     /**
-     *  Private constructor - use create() factory method.
+     *  Private constructor
      *
      *  @param      fds  Array of perf_event file descriptors.
      */

@@ -136,7 +136,6 @@ TEST_CASE("PmuSample LLC miss rate calculation", "[events][PmuSample]")
 
 TEST_CASE("classifyMigration with hybrid topology", "[events][classifyMigration]")
 {
-    // Setup: P-cores 0-3, E-cores 4-7
     std::vector<CpuId> p_cores = {0, 1, 2, 3};
     std::vector<CpuId> e_cores = {4, 5, 6, 7};
     TopologyMap topology(p_cores, e_cores);

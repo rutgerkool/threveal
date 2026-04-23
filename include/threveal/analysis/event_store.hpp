@@ -70,8 +70,8 @@ class EventStore
     /**
      *  Returns all migrations within a time range.
      *
-     *  @param      start_ns  Start of time range (inclusive), nanoseconds since boot.
-     *  @param      end_ns    End of time range (inclusive), nanoseconds since boot.
+     *  @param      start_ns  Start of time range, nanoseconds since boot.
+     *  @param      end_ns    End of time range, nanoseconds since boot.
      *  @return     A vector of migrations within the specified range.
      */
     [[nodiscard]] auto migrationsInRange(std::uint64_t start_ns, std::uint64_t end_ns) const

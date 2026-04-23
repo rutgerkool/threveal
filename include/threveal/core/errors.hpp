@@ -70,7 +70,7 @@ enum class TopologyError : std::uint8_t
 }
 
 /**
- *  Error conditions that can occur during PMU (Performance Monitoring Unit) operations.
+ *  Error conditions that can occur during PMU operations.
  */
 enum class PmuError : std::uint8_t
 {

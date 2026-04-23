@@ -24,7 +24,6 @@ auto classifyMigration(const MigrationEvent& event, const TopologyMap& topology)
         return MigrationType::kUnknown;
     }
 
-    // Classify based on source and destination core types
     if (*src_type == CoreType::kPCore)
     {
         if (*dst_type == CoreType::kPCore)
@@ -34,7 +33,6 @@ auto classifyMigration(const MigrationEvent& event, const TopologyMap& topology)
         return MigrationType::kPToE;
     }
 
-    // Source is E-core
     if (*dst_type == CoreType::kPCore)
     {
         return MigrationType::kEToP;
