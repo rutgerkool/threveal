@@ -134,6 +134,14 @@ enum class PmuEventType : std::uint8_t
 [[nodiscard]] auto detectCorePmuTypes(std::string_view event_source_dir = kEventSourceDir)
     -> std::vector<std::uint32_t>;
 
+/**
+ *  Returns the PMU types a counter must be opened on to follow its target.
+ *
+ *  @param      cpu  The CPU the counter is bound to, or -1 for any CPU.
+ *  @return     The PMU types to open the counter on, never empty.
+ */
+[[nodiscard]] auto corePmuTypesFor(int cpu) -> std::vector<std::uint32_t>;
+
 }  // namespace threveal::collection
 
 #endif  // THREVEAL_COLLECTION_PERF_EVENT_HPP_

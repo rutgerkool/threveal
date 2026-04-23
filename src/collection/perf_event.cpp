@@ -217,4 +217,13 @@ auto detectCorePmuTypes(std::string_view event_source_dir) -> std::vector<std::u
     return types;
 }
 
+auto corePmuTypesFor(int cpu) -> std::vector<std::uint32_t>
+{
+    if (cpu >= 0)
+    {
+        return {kDefaultPmuType};
+    }
+    return detectCorePmuTypes();
+}
+
 }  // namespace threveal::collection

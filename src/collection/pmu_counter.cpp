@@ -11,6 +11,7 @@
 #include "threveal/core/errors.hpp"
 
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <linux/perf_event.h>
@@ -61,22 +62,26 @@ void PmuCounter::closeAll() noexcept
 auto PmuCounter::create(PmuEventType event, pid_t tid, int cpu)
     -> std::expected<PmuCounter, core::PmuError>
 {
-    auto attr = makeEventAttr(event);
-
     pid_t effective_tid = (tid == -1) ? 0 : tid;
-
-    int fd = perfEventOpen(&attr, effective_tid, cpu, -1, 0);
-
-    if (fd < 0)
-    {
-        return std::unexpected(errnoToPmuError(errno));
-    }
+    auto pmu_types = corePmuTypesFor(cpu);
 
     FdArray fds{};
     fds.fill(kInvalidFd);
-    fds[0] = fd;
 
-    return PmuCounter{fds, event};
+    PmuCounter counter{fds, event};
+
+    for (std::size_t i = 0; i < pmu_types.size(); ++i)
+    {
+        auto attr = makeEventAttr(event, pmu_types[i]);
+
+        counter.fds_.at(i) = perfEventOpen(&attr, effective_tid, cpu, -1, 0);
+        if (counter.fds_.at(i) < 0)
+        {
+            return std::unexpected(errnoToPmuError(errno));
+        }
+    }
+
+    return counter;
 }
 
 auto PmuCounter::read() const -> std::expected<std::uint64_t, core::PmuError>
