@@ -10,7 +10,7 @@
 #include "threveal/analysis/migration_analyzer.hpp"
 
 #include <cstdint>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <vector>
 
 namespace threveal::analysis
