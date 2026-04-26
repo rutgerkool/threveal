@@ -126,17 +126,7 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) con
     // Compute performance deltas across the migration boundary
     double ipc_delta = sample_after->ipc() - sample_before->ipc();
     double cache_miss_delta = sample_after->llcMissRate() - sample_before->llcMissRate();
-
-    // Branch miss rate: misses per instruction
-    double branch_miss_before = (sample_before->instructions > 0)
-                                    ? static_cast<double>(sample_before->branch_misses) /
-                                          static_cast<double>(sample_before->instructions)
-                                    : 0.0;
-    double branch_miss_after = (sample_after->instructions > 0)
-                                   ? static_cast<double>(sample_after->branch_misses) /
-                                         static_cast<double>(sample_after->instructions)
-                                   : 0.0;
-    double branch_miss_delta = branch_miss_after - branch_miss_before;
+    double branch_miss_delta = sample_after->branchMissRate() - sample_before->branchMissRate();
 
     double confidence = calculateConfidence(gap_before_ns, gap_after_ns);
 
