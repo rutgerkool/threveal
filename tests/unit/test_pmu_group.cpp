@@ -10,6 +10,8 @@
 
 #include "threveal/collection/pmu_group.hpp"
 #include "threveal/core/errors.hpp"
+#include "threveal/core/topology.hpp"
+#include "threveal/core/types.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers.hpp>
@@ -22,8 +24,38 @@
 using Catch::Matchers::WithinRel;
 using threveal::collection::PmuGroup;
 using threveal::collection::PmuGroupReading;
+using threveal::core::CpuId;
 using threveal::core::PmuError;
+using threveal::core::TopologyMap;
+using threveal::test::burnCycles;
 using threveal::test::hasPmuAccess;
+using threveal::test::ScopedCpuPin;
+
+namespace
+{
+
+/**
+ *  Reads the group while pinned to one CPU and requires non-zero cycles and instructions.
+ */
+void requireGroupCountsOn(CpuId cpu)
+{
+    ScopedCpuPin pin(cpu);
+    REQUIRE(pin.pinned());
+
+    auto group = PmuGroup::create();
+    REQUIRE(group.has_value());
+
+    REQUIRE(group->enable().has_value());
+    burnCycles();
+    REQUIRE(group->disable().has_value());
+
+    auto reading = group->read();
+    REQUIRE(reading.has_value());
+    REQUIRE(reading->cycles > 0);
+    REQUIRE(reading->instructions > 0);
+}
+
+}  // namespace
 
 TEST_CASE("PmuGroupReading IPC calculation", "[collection][PmuGroupReading]")
 {
@@ -204,6 +236,30 @@ TEST_CASE("PmuGroup read returns values", "[collection][PmuGroup]")
     REQUIRE(reading.has_value());
     REQUIRE(reading->cycles > 0);
     REQUIRE(reading->instructions > 0);
+}
+
+TEST_CASE("PmuGroup counts on both core types of a hybrid CPU", "[collection][PmuGroup]")
+{
+    if (!hasPmuAccess())
+    {
+        SKIP("PMU access not permitted (perf_event_paranoid > 1)");
+    }
+
+    auto topology = TopologyMap::loadFromSysfs();
+    if (!topology.has_value() || !topology->isHybrid())
+    {
+        SKIP("Requires a hybrid CPU");
+    }
+
+    SECTION("P-core")
+    {
+        requireGroupCountsOn(topology->getPCores().front());
+    }
+
+    SECTION("E-core")
+    {
+        requireGroupCountsOn(topology->getECores().front());
+    }
 }
 
 TEST_CASE("PmuGroup operations on invalid group fail", "[collection][PmuGroup]")
