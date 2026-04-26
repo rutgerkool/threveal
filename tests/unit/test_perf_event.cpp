@@ -19,6 +19,7 @@
 #include <string_view>
 #include <vector>
 
+using threveal::collection::corePmuTypesFor;
 using threveal::collection::detectCorePmuTypes;
 using threveal::collection::kDefaultPmuType;
 using threveal::collection::makeEventAttr;
@@ -120,6 +121,18 @@ TEST_CASE("detectCorePmuTypes never returns an empty list on this machine",
           "[collection][perf_event]")
 {
     REQUIRE_FALSE(detectCorePmuTypes().empty());
+}
+
+TEST_CASE("corePmuTypesFor uses every core PMU for a thread-bound counter",
+          "[collection][perf_event]")
+{
+    REQUIRE(corePmuTypesFor(-1) == detectCorePmuTypes());
+}
+
+TEST_CASE("corePmuTypesFor uses the default PMU for a CPU-bound counter",
+          "[collection][perf_event]")
+{
+    REQUIRE(corePmuTypesFor(0) == std::vector<std::uint32_t>{kDefaultPmuType});
 }
 
 TEST_CASE("makeEventAttr leaves the config untouched for the default PMU",
