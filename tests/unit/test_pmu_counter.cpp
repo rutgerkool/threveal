@@ -10,6 +10,8 @@
 
 #include "threveal/collection/pmu_counter.hpp"
 #include "threveal/core/errors.hpp"
+#include "threveal/core/topology.hpp"
+#include "threveal/core/types.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
@@ -20,8 +22,37 @@
 using threveal::collection::PmuCounter;
 using threveal::collection::PmuEventType;
 using threveal::collection::toString;
+using threveal::core::CpuId;
 using threveal::core::PmuError;
+using threveal::core::TopologyMap;
+using threveal::test::burnCycles;
 using threveal::test::hasPmuAccess;
+using threveal::test::ScopedCpuPin;
+
+namespace
+{
+
+/**
+ *  Counts cycles while pinned to one CPU and requires a non-zero result.
+ */
+void requireCyclesCountedOn(CpuId cpu)
+{
+    ScopedCpuPin pin(cpu);
+    REQUIRE(pin.pinned());
+
+    auto counter = PmuCounter::create(PmuEventType::kCycles);
+    REQUIRE(counter.has_value());
+
+    REQUIRE(counter->enable().has_value());
+    burnCycles();
+    REQUIRE(counter->disable().has_value());
+
+    auto value = counter->read();
+    REQUIRE(value.has_value());
+    REQUIRE(*value > 0);
+}
+
+}  // namespace
 
 TEST_CASE("PmuEventType toString", "[collection][PmuEventType]")
 {
@@ -144,6 +175,30 @@ TEST_CASE("PmuCounter read returns value", "[collection][PmuCounter]")
     auto value = counter->read();
     REQUIRE(value.has_value());
     REQUIRE(*value > 0);
+}
+
+TEST_CASE("PmuCounter counts on both core types of a hybrid CPU", "[collection][PmuCounter]")
+{
+    if (!hasPmuAccess())
+    {
+        SKIP("PMU access not permitted (perf_event_paranoid > 1)");
+    }
+
+    auto topology = TopologyMap::loadFromSysfs();
+    if (!topology.has_value() || !topology->isHybrid())
+    {
+        SKIP("Requires a hybrid CPU");
+    }
+
+    SECTION("P-core")
+    {
+        requireCyclesCountedOn(topology->getPCores().front());
+    }
+
+    SECTION("E-core")
+    {
+        requireCyclesCountedOn(topology->getECores().front());
+    }
 }
 
 TEST_CASE("PmuCounter all event types can be created", "[collection][PmuCounter]")
