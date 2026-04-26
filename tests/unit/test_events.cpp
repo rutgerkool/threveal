@@ -134,6 +134,57 @@ TEST_CASE("PmuSample LLC miss rate calculation", "[events][PmuSample]")
     }
 }
 
+TEST_CASE("PmuSample branch miss rate calculation", "[events][PmuSample]")
+{
+    SECTION("normal branch miss rate calculation")
+    {
+        PmuSample sample{
+            .timestamp_ns = 1000,
+            .tid = 42,
+            .cpu_id = 0,
+            .instructions = 1000000,
+            .cycles = 500000,
+            .llc_misses = 0,
+            .llc_references = 0,
+            .branch_misses = 5000,
+        };
+
+        REQUIRE_THAT(sample.branchMissRate(), WithinRel(0.005, 0.001));
+    }
+
+    SECTION("zero instructions returns zero rate")
+    {
+        PmuSample sample{
+            .timestamp_ns = 1000,
+            .tid = 42,
+            .cpu_id = 0,
+            .instructions = 0,
+            .cycles = 500000,
+            .llc_misses = 0,
+            .llc_references = 0,
+            .branch_misses = 5000,
+        };
+
+        REQUIRE(sample.branchMissRate() == 0.0);
+    }
+
+    SECTION("no branch misses returns zero rate")
+    {
+        PmuSample sample{
+            .timestamp_ns = 1000,
+            .tid = 42,
+            .cpu_id = 0,
+            .instructions = 1000000,
+            .cycles = 500000,
+            .llc_misses = 0,
+            .llc_references = 0,
+            .branch_misses = 0,
+        };
+
+        REQUIRE(sample.branchMissRate() == 0.0);
+    }
+}
+
 TEST_CASE("classifyMigration with hybrid topology", "[events][classifyMigration]")
 {
     std::vector<CpuId> p_cores = {0, 1, 2, 3};
