@@ -13,38 +13,15 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
-#include <fstream>
 #include <utility>
+
+#include "pmu_test_support.hpp"
 
 using threveal::collection::PmuCounter;
 using threveal::collection::PmuEventType;
 using threveal::collection::toString;
 using threveal::core::PmuError;
-
-namespace
-{
-
-/**
- *  Checks if PMU access is permitted on this system.
- *
- *  @return     True if perf_event_paranoid allows user-space PMU access.
- */
-auto hasPmuAccess() -> bool
-{
-    std::ifstream file("/proc/sys/kernel/perf_event_paranoid");
-    if (!file)
-    {
-        return false;
-    }
-
-    int level = 0;
-    file >> level;
-
-    // Level <= 1 allows user-space PMU access without CAP_PERFMON
-    return level <= 1;
-}
-
-}  // namespace
+using threveal::test::hasPmuAccess;
 
 TEST_CASE("PmuEventType toString", "[collection][PmuEventType]")
 {

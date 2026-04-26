@@ -15,35 +15,15 @@
 #include <catch2/matchers/catch_matchers.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstdint>
-#include <fstream>
 #include <utility>
+
+#include "pmu_test_support.hpp"
 
 using Catch::Matchers::WithinRel;
 using threveal::collection::PmuGroup;
 using threveal::collection::PmuGroupReading;
 using threveal::core::PmuError;
-
-namespace
-{
-
-/**
- *  Checks if PMU access is permitted on this system.
- */
-auto hasPmuAccess() -> bool
-{
-    std::ifstream file("/proc/sys/kernel/perf_event_paranoid");
-    if (!file)
-    {
-        return false;
-    }
-
-    int level = 0;
-    file >> level;
-
-    return level <= 1;
-}
-
-}  // namespace
+using threveal::test::hasPmuAccess;
 
 TEST_CASE("PmuGroupReading IPC calculation", "[collection][PmuGroupReading]")
 {

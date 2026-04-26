@@ -16,35 +16,20 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
 #include <mutex>
 #include <thread>
 #include <utility>
 #include <vector>
 
+#include "pmu_test_support.hpp"
+
 using threveal::collection::PmuSampler;
 using threveal::core::PmuError;
 using threveal::core::PmuSample;
+using threveal::test::hasPmuAccess;
 
 namespace
 {
-
-/**
- *  Checks if PMU access is permitted on this system.
- */
-auto hasPmuAccess() -> bool
-{
-    std::ifstream file("/proc/sys/kernel/perf_event_paranoid");
-    if (!file)
-    {
-        return false;
-    }
-
-    int level = 0;
-    file >> level;
-
-    return level <= 1;
-}
 
 /**
  *  Thread-safe sample collector for testing.
