@@ -495,3 +495,23 @@ TEST_CASE("MigrationAnalyzer result counts are consistent", "[analysis][Migratio
     }
     REQUIRE(thread_sum == result.total_migrations);
 }
+
+TEST_CASE("MigrationAnalyzer orders threads with equal migration counts by tid",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    for (std::uint32_t tid : {41U, 42U, 43U})
+    {
+        store.addMigration(makeMigration(tid * 1'000'000ULL, tid, 0, 12));
+    }
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.thread_stats.size() == 3);
+    REQUIRE(result.thread_stats[0].tid == 41);
+    REQUIRE(result.thread_stats[1].tid == 42);
+    REQUIRE(result.thread_stats[2].tid == 43);
+}
