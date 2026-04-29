@@ -341,10 +341,15 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         });
     }
 
+    // Most migrations first, ties by tid so the order does not depend on hash map iteration
     std::ranges::sort(result,
                       [](const ThreadStatistics& lhs, const ThreadStatistics& rhs)
                       {
-                          return lhs.total_migrations > rhs.total_migrations;
+                          if (lhs.total_migrations != rhs.total_migrations)
+                          {
+                              return lhs.total_migrations > rhs.total_migrations;
+                          }
+                          return lhs.tid < rhs.tid;
                       });
 
     return result;
