@@ -5,5 +5,6 @@
   "description": "Hybrid core migration profiler for Intel Alder Lake/Raptor Lake CPUs",
   "license": "MIT",
   "supports": "linux",
-  "dependencies": ["fmt", "cli11", "nlohmann-json", "catch2", "benchmark"]
+  "dependencies": ["fmt", "cli11", "nlohmann-json", "catch2", "benchmark"],
+  "builtin-baseline": "af752f21c9d79ba3df9cb0250ce2233933f58486"
 }

@@ -73,7 +73,10 @@ jobs:
 
       - name: Setup vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg.git --depth 1
+          VCPKG_COMMIT=$(jq -r '."builtin-baseline"' vcpkg.json)
+          git init vcpkg
+          git -C vcpkg fetch --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_COMMIT"
+          git -C vcpkg checkout FETCH_HEAD
           ./vcpkg/bootstrap-vcpkg.sh
 
       - name: Configure
@@ -212,7 +215,10 @@ jobs:
 
       - name: Setup vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg.git --depth 1
+          VCPKG_COMMIT=$(jq -r '."builtin-baseline"' vcpkg.json)
+          git init vcpkg
+          git -C vcpkg fetch --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_COMMIT"
+          git -C vcpkg checkout FETCH_HEAD
           ./vcpkg/bootstrap-vcpkg.sh
 
       - name: Configure
