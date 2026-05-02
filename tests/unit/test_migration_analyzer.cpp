@@ -530,3 +530,27 @@ TEST_CASE("MigrationAnalyzer thread stats carry pid and comm", "[analysis][Migra
     REQUIRE(result.thread_stats[0].pid == 42);
     REQUIRE(result.thread_stats[0].comm == "thread_42");
 }
+
+TEST_CASE("MigrationAnalyzer thread averages exclude low-confidence impacts",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
+    store.addMigration(makeMigration(1'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+
+    // No samples within the max gap, so this impact has zero confidence
+    store.addMigration(makeMigration(50'000'000, 42, 0, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.thread_stats.size() == 1);
+    const auto& stats = result.thread_stats[0];
+
+    REQUIRE(stats.p_to_e_migrations == 2);
+    REQUIRE(stats.avg_ipc_loss_on_p_to_e == Approx(-1.0));
+    REQUIRE(stats.avg_cache_miss_delta == Approx(0.1));
+}
