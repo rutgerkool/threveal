@@ -68,6 +68,80 @@ struct ThreadAccumulator
     std::uint32_t cross_type_confident = 0;
 };
 
+/**
+ *  Counts one migration in the thread's per-type tallies.
+ */
+void countMigrationType(ThreadAccumulator& acc, core::MigrationType type) noexcept
+{
+    switch (type)
+    {
+        case core::MigrationType::kPToE:
+            ++acc.p_to_e;
+            break;
+        case core::MigrationType::kEToP:
+            ++acc.e_to_p;
+            break;
+        case core::MigrationType::kPToP:
+            ++acc.p_to_p;
+            break;
+        case core::MigrationType::kEToE:
+            ++acc.e_to_e;
+            break;
+        case core::MigrationType::kUnknown:
+            break;
+    }
+}
+
+/**
+ *  Adds the performance deltas of a cross-type migration; other types are ignored.
+ */
+void addCrossTypeDeltas(ThreadAccumulator& acc, const MigrationImpact& impact) noexcept
+{
+    if (impact.type == core::MigrationType::kPToE)
+    {
+        acc.p_to_e_ipc_sum += impact.ipc_delta;
+        ++acc.p_to_e_confident;
+    }
+    else if (impact.type == core::MigrationType::kEToP)
+    {
+        acc.e_to_p_ipc_sum += impact.ipc_delta;
+        ++acc.e_to_p_confident;
+    }
+    else
+    {
+        return;
+    }
+
+    acc.cache_miss_sum += impact.cache_miss_delta;
+    ++acc.cross_type_confident;
+}
+
+/**
+ *  Adds one migration impact to its thread's accumulator.
+ *
+ *  @param      acc             The accumulator of the impact's thread.
+ *  @param      impact          The migration impact to add.
+ *  @param      min_confidence  Minimum confidence for the deltas to be included.
+ */
+void addImpact(ThreadAccumulator& acc, const MigrationImpact& impact, double min_confidence)
+{
+    if (acc.total == 0)
+    {
+        acc.pid = impact.event.pid;
+        acc.comm = std::string(impact.event.commAsStringView());
+    }
+
+    ++acc.total;
+    countMigrationType(acc, impact.type);
+
+    // Every migration is counted, but deltas only from confident measurements
+    if (impact.confidence < min_confidence)
+    {
+        return;
+    }
+    addCrossTypeDeltas(acc, impact);
+}
+
 }  // namespace
 
 MigrationAnalyzer::MigrationAnalyzer(const EventStore& store,
@@ -251,62 +325,7 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
 
     for (const auto& impact : impacts)
     {
-        auto tid = impact.event.tid;
-        auto& acc = thread_map[tid];
-
-        // Set identity fields on first encounter
-        if (acc.total == 0)
-        {
-            acc.pid = impact.event.pid;
-            acc.comm = std::string(impact.event.commAsStringView());
-        }
-
-        // Count all migrations regardless of confidence
-        ++acc.total;
-
-        switch (impact.type)
-        {
-            case core::MigrationType::kPToE:
-                ++acc.p_to_e;
-                break;
-            case core::MigrationType::kEToP:
-                ++acc.e_to_p;
-                break;
-            case core::MigrationType::kPToP:
-                ++acc.p_to_p;
-                break;
-            case core::MigrationType::kEToE:
-                ++acc.e_to_e;
-                break;
-            case core::MigrationType::kUnknown:
-                break;
-        }
-
-        // Accumulate performance deltas only for confident measurements
-        if (impact.confidence < min_confidence_)
-        {
-            continue;
-        }
-
-        bool is_cross_type = (impact.type == core::MigrationType::kPToE ||
-                              impact.type == core::MigrationType::kEToP);
-
-        if (impact.type == core::MigrationType::kPToE)
-        {
-            acc.p_to_e_ipc_sum += impact.ipc_delta;
-            ++acc.p_to_e_confident;
-        }
-        else if (impact.type == core::MigrationType::kEToP)
-        {
-            acc.e_to_p_ipc_sum += impact.ipc_delta;
-            ++acc.e_to_p_confident;
-        }
-
-        if (is_cross_type)
-        {
-            acc.cache_miss_sum += impact.cache_miss_delta;
-            ++acc.cross_type_confident;
-        }
+        addImpact(thread_map[impact.event.tid], impact, min_confidence_);
     }
 
     // Convert accumulators to ThreadStatistics
