@@ -142,6 +142,38 @@ void addImpact(ThreadAccumulator& acc, const MigrationImpact& impact, double min
     addCrossTypeDeltas(acc, impact);
 }
 
+/**
+ *  Averages a sum over a count, or returns 0.0 when there is nothing to average.
+ */
+constexpr auto average(double sum, std::uint32_t count) noexcept -> double
+{
+    return count > 0 ? sum / static_cast<double>(count) : 0.0;
+}
+
+/**
+ *  Builds the final statistics of one thread from its accumulator.
+ *
+ *  @param      tid  The thread ID.
+ *  @param      acc  The thread's accumulated totals.
+ *  @return     The thread's statistics.
+ */
+auto toThreadStatistics(std::uint32_t tid, const ThreadAccumulator& acc) -> ThreadStatistics
+{
+    return ThreadStatistics{
+        .tid = tid,
+        .pid = acc.pid,
+        .comm = acc.comm,
+        .total_migrations = acc.total,
+        .p_to_e_migrations = acc.p_to_e,
+        .e_to_p_migrations = acc.e_to_p,
+        .p_to_p_migrations = acc.p_to_p,
+        .e_to_e_migrations = acc.e_to_e,
+        .avg_ipc_loss_on_p_to_e = average(acc.p_to_e_ipc_sum, acc.p_to_e_confident),
+        .avg_ipc_gain_on_e_to_p = average(acc.e_to_p_ipc_sum, acc.e_to_p_confident),
+        .avg_cache_miss_delta = average(acc.cache_miss_sum, acc.cross_type_confident),
+    };
+}
+
 }  // namespace
 
 MigrationAnalyzer::MigrationAnalyzer(const EventStore& store,
@@ -328,38 +360,12 @@ auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& im
         addImpact(thread_map[impact.event.tid], impact, min_confidence_);
     }
 
-    // Convert accumulators to ThreadStatistics
     std::vector<ThreadStatistics> result;
     result.reserve(thread_map.size());
 
     for (const auto& [tid, acc] : thread_map)
     {
-        double avg_ipc_loss = (acc.p_to_e_confident > 0)
-                                  ? acc.p_to_e_ipc_sum / static_cast<double>(acc.p_to_e_confident)
-                                  : 0.0;
-
-        double avg_ipc_gain = (acc.e_to_p_confident > 0)
-                                  ? acc.e_to_p_ipc_sum / static_cast<double>(acc.e_to_p_confident)
-                                  : 0.0;
-
-        double avg_cache_delta =
-            (acc.cross_type_confident > 0)
-                ? acc.cache_miss_sum / static_cast<double>(acc.cross_type_confident)
-                : 0.0;
-
-        result.push_back(ThreadStatistics{
-            .tid = tid,
-            .pid = acc.pid,
-            .comm = acc.comm,
-            .total_migrations = acc.total,
-            .p_to_e_migrations = acc.p_to_e,
-            .e_to_p_migrations = acc.e_to_p,
-            .p_to_p_migrations = acc.p_to_p,
-            .e_to_e_migrations = acc.e_to_e,
-            .avg_ipc_loss_on_p_to_e = avg_ipc_loss,
-            .avg_ipc_gain_on_e_to_p = avg_ipc_gain,
-            .avg_cache_miss_delta = avg_cache_delta,
-        });
+        result.push_back(toThreadStatistics(tid, acc));
     }
 
     // Most migrations first, ties by tid so the order does not depend on hash map iteration
