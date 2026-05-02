@@ -554,3 +554,33 @@ TEST_CASE("MigrationAnalyzer thread averages exclude low-confidence impacts",
     REQUIRE(stats.avg_ipc_loss_on_p_to_e == Approx(-1.0));
     REQUIRE(stats.avg_cache_miss_delta == Approx(0.1));
 }
+
+TEST_CASE("MigrationAnalyzer thread cache delta averages over all cross-type migrations",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
+    store.addMigration(makeMigration(1'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+
+    store.addPmuSample(makeHighPerfSample(1'900'000, 42, 0));
+    store.addMigration(makeMigration(2'000'000, 42, 0, 13));
+    store.addPmuSample(makeLowPerfSample(2'100'000, 42, 13));
+
+    store.addPmuSample(makeLowPerfSample(2'900'000, 42, 12));
+    store.addMigration(makeMigration(3'000'000, 42, 12, 0));
+    store.addPmuSample(makeHighPerfSample(3'100'000, 42, 0));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.thread_stats.size() == 1);
+    const auto& stats = result.thread_stats[0];
+
+    // Two P to E migrations at +0.1 and one E to P migration at -0.1
+    REQUIRE(stats.avg_cache_miss_delta == Approx(0.1 / 3.0));
+    REQUIRE(stats.avg_ipc_loss_on_p_to_e == Approx(-1.0));
+    REQUIRE(stats.avg_ipc_gain_on_e_to_p == Approx(1.0));
+}
