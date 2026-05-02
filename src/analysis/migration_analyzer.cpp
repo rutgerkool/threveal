@@ -46,6 +46,28 @@ namespace
     };
 }
 
+/**
+ *  Running totals for one thread while aggregating impacts.
+ */
+struct ThreadAccumulator
+{
+    std::uint32_t pid = 0;
+    std::string comm;
+    std::uint32_t total = 0;
+    std::uint32_t p_to_e = 0;
+    std::uint32_t e_to_p = 0;
+    std::uint32_t p_to_p = 0;
+    std::uint32_t e_to_e = 0;
+
+    // Only accumulate from impacts meeting confidence threshold
+    double p_to_e_ipc_sum = 0.0;
+    std::uint32_t p_to_e_confident = 0;
+    double e_to_p_ipc_sum = 0.0;
+    std::uint32_t e_to_p_confident = 0;
+    double cache_miss_sum = 0.0;
+    std::uint32_t cross_type_confident = 0;
+};
+
 }  // namespace
 
 MigrationAnalyzer::MigrationAnalyzer(const EventStore& store,
@@ -225,26 +247,6 @@ auto MigrationAnalyzer::aggregateByType(const std::vector<MigrationImpact>& impa
 auto MigrationAnalyzer::aggregateByThread(const std::vector<MigrationImpact>& impacts) const
     -> std::vector<ThreadStatistics>
 {
-    // Per-thread accumulator for building statistics
-    struct ThreadAccumulator
-    {
-        std::uint32_t pid = 0;
-        std::string comm;
-        std::uint32_t total = 0;
-        std::uint32_t p_to_e = 0;
-        std::uint32_t e_to_p = 0;
-        std::uint32_t p_to_p = 0;
-        std::uint32_t e_to_e = 0;
-
-        // Only accumulate from impacts meeting confidence threshold
-        double p_to_e_ipc_sum = 0.0;
-        std::uint32_t p_to_e_confident = 0;
-        double e_to_p_ipc_sum = 0.0;
-        std::uint32_t e_to_p_confident = 0;
-        double cache_miss_sum = 0.0;
-        std::uint32_t cross_type_confident = 0;
-    };
-
     std::unordered_map<std::uint32_t, ThreadAccumulator> thread_map;
 
     for (const auto& impact : impacts)
