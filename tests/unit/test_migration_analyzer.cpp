@@ -515,3 +515,18 @@ TEST_CASE("MigrationAnalyzer orders threads with equal migration counts by tid",
     REQUIRE(result.thread_stats[1].tid == 42);
     REQUIRE(result.thread_stats[2].tid == 43);
 }
+
+TEST_CASE("MigrationAnalyzer thread stats carry pid and comm", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addMigration(makeMigration(1'000'000, 42, 0, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.thread_stats.size() == 1);
+    REQUIRE(result.thread_stats[0].pid == 42);
+    REQUIRE(result.thread_stats[0].comm == "thread_42");
+}
