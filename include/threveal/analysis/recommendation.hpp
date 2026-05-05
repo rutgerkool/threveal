@@ -136,12 +136,12 @@ class RecommendationEngine
     static constexpr double kDefaultPToEFractionThreshold = 0.30;
 
     /**
-     *  Migration rate above which reduction is recommended.
+     *  Migration rate at or above which reduction is recommended.
      */
     static constexpr double kDefaultHighMigrationRate = 100.0;
 
     /**
-     *  E-core occupancy fraction above which E-core pinning is considered.
+     *  Share of migrations landing on E-cores above which E-core pinning is considered.
      */
     static constexpr double kDefaultECoreMajorityThreshold = 0.50;
 
@@ -182,7 +182,7 @@ class RecommendationEngine
     void setIpcLossThreshold(double threshold) noexcept;
 
     /**
-     *  Sets the migration rate threshold above which reduction is recommended.
+     *  Sets the migration rate at or above which reduction is recommended.
      *
      *  @param      rate_per_sec  Migrations per second
      */
