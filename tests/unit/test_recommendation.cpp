@@ -288,6 +288,54 @@ TEST_CASE("RecommendationEngine always provides a non-empty explanation",
     }
 }
 
+TEST_CASE("RecommendationEngine analyzes a thread with exactly the minimum migrations",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    auto stats = makeStats(42, 5, 3, 0, 2, 0, -0.5);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToPCores);
+}
+
+TEST_CASE("RecommendationEngine thresholds behave correctly at their boundaries",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    SECTION("P to E fraction exactly at threshold pins to P-cores")
+    {
+        auto stats = makeStats(42, 10, 3, 0, 7, 0, -0.5);
+        REQUIRE(engine.analyze({stats})[0].recommendation == AffinityRecommendation::kPinToPCores);
+    }
+
+    SECTION("IPC loss exactly at threshold does not pin to P-cores")
+    {
+        auto stats = makeStats(42, 10, 5, 0, 5, 0, -0.10);
+        REQUIRE(engine.analyze({stats})[0].recommendation != AffinityRecommendation::kPinToPCores);
+    }
+
+    SECTION("Migration rate exactly at threshold recommends reducing migrations")
+    {
+        auto stats = makeStats(42, 100, 0, 0, 100, 0);
+        REQUIRE(engine.analyze({stats})[0].recommendation ==
+                AffinityRecommendation::kReduceMigrations);
+    }
+
+    SECTION("E-core fraction exactly at threshold does not pin to E-cores")
+    {
+        auto stats = makeStats(42, 10, 2, 2, 3, 3, 0.0, 0.02);
+        REQUIRE(engine.analyze({stats})[0].recommendation != AffinityRecommendation::kPinToECores);
+    }
+
+    SECTION("IPC gain exactly at threshold does not pin to E-cores")
+    {
+        auto stats = makeStats(42, 10, 2, 2, 0, 6, 0.0, 0.10);
+        REQUIRE(engine.analyze({stats})[0].recommendation != AffinityRecommendation::kPinToECores);
+    }
+}
+
 TEST_CASE("toString(AffinityRecommendation) returns correct labels",
           "[analysis][RecommendationEngine]")
 {
