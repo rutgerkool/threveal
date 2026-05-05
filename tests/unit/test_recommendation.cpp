@@ -336,6 +336,29 @@ TEST_CASE("RecommendationEngine thresholds behave correctly at their boundaries"
     }
 }
 
+TEST_CASE("RecommendationEngine counts P to E migrations as E-core activity",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    // E to E alone is 40%, only with the P to E arrivals does it pass 50%
+    auto stats = makeStats(42, 10, 2, 2, 2, 4, 0.0, 0.02);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kPinToECores);
+}
+
+TEST_CASE("RecommendationEngine counts E to P migrations as cross-type activity",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    auto stats = makeStats(42, 10, 0, 1, 9, 0);
+    auto results = engine.analyze({stats});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kInvestigateFurther);
+}
+
 TEST_CASE("toString(AffinityRecommendation) returns correct labels",
           "[analysis][RecommendationEngine]")
 {
