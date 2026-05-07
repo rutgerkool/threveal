@@ -359,6 +359,25 @@ TEST_CASE("RecommendationEngine counts E to P migrations as cross-type activity"
     REQUIRE(results[0].recommendation == AffinityRecommendation::kInvestigateFurther);
 }
 
+TEST_CASE("RecommendationEngine applies rules in priority order",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    SECTION("P-core pinning takes priority over reducing migrations")
+    {
+        auto stats = makeStats(42, 200, 100, 0, 100, 0, -0.5);
+        REQUIRE(engine.analyze({stats})[0].recommendation == AffinityRecommendation::kPinToPCores);
+    }
+
+    SECTION("Reducing migrations takes priority over E-core pinning")
+    {
+        auto stats = makeStats(42, 200, 40, 40, 0, 120, 0.0, 0.02);
+        REQUIRE(engine.analyze({stats})[0].recommendation ==
+                AffinityRecommendation::kReduceMigrations);
+    }
+}
+
 TEST_CASE("toString(AffinityRecommendation) returns correct labels",
           "[analysis][RecommendationEngine]")
 {
