@@ -10,10 +10,12 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <cstdint>
 #include <string>
 #include <vector>
 
+using Catch::Matchers::ContainsSubstring;
 using threveal::analysis::AffinityRecommendation;
 using threveal::analysis::RecommendationEngine;
 using threveal::analysis::ThreadStatistics;
@@ -375,6 +377,38 @@ TEST_CASE("RecommendationEngine applies rules in priority order",
         auto stats = makeStats(42, 200, 40, 40, 0, 120, 0.0, 0.02);
         REQUIRE(engine.analyze({stats})[0].recommendation ==
                 AffinityRecommendation::kReduceMigrations);
+    }
+}
+
+TEST_CASE("RecommendationEngine explanations report the measured values",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    SECTION("P-core pinning reports IPC loss and P to E share")
+    {
+        auto result = engine.analyze({makeStats(42, 10, 5, 0, 5, 0, -0.5)})[0];
+        REQUIRE_THAT(result.explanation, ContainsSubstring("-0.50"));
+        REQUIRE_THAT(result.explanation, ContainsSubstring("50%"));
+    }
+
+    SECTION("Reducing migrations reports the migration rate")
+    {
+        auto result = engine.analyze({makeStats(42, 200, 0, 0, 200, 0)})[0];
+        REQUIRE_THAT(result.explanation, ContainsSubstring("200 migrations/second"));
+    }
+
+    SECTION("E-core pinning reports E-core share and IPC gain")
+    {
+        auto result = engine.analyze({makeStats(42, 10, 2, 2, 0, 6, 0.0, 0.02)})[0];
+        REQUIRE_THAT(result.explanation, ContainsSubstring("80%"));
+        REQUIRE_THAT(result.explanation, ContainsSubstring("0.02"));
+    }
+
+    SECTION("Investigating further reports the cross-type counts")
+    {
+        auto result = engine.analyze({makeStats(42, 10, 1, 2, 7, 0)})[0];
+        REQUIRE_THAT(result.explanation, ContainsSubstring("P→E: 1, E→P: 2"));
     }
 }
 
