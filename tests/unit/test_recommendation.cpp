@@ -412,6 +412,18 @@ TEST_CASE("RecommendationEngine explanations report the measured values",
     }
 }
 
+TEST_CASE("RecommendationEngine results carry the thread identity",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    auto results = engine.analyze({makeStats(42, 10, 0, 0, 10, 0)});
+
+    REQUIRE(results[0].tid == 42);
+    REQUIRE(results[0].pid == 42);
+    REQUIRE(results[0].comm == "thread_42");
+}
+
 TEST_CASE("toString(AffinityRecommendation) returns correct labels",
           "[analysis][RecommendationEngine]")
 {
