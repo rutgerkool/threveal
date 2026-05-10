@@ -21,6 +21,14 @@ namespace
 
 constexpr double kNsPerSec = 1.0e9;
 
+/**
+ *  Returns count as a fraction of total, or 0.0 when total is zero.
+ */
+constexpr auto fractionOf(std::uint32_t count, std::uint32_t total) noexcept -> double
+{
+    return total > 0 ? static_cast<double>(count) / static_cast<double>(total) : 0.0;
+}
+
 }  // namespace
 
 RecommendationEngine::RecommendationEngine(std::uint64_t profiling_duration_ns) noexcept
@@ -73,18 +81,11 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
 {
     double rate = computeMigrationRate(stats.total_migrations);
 
-    // Fraction of migrations that move the thread from P-core to E-core
-    double p_to_e_fraction = (stats.total_migrations > 0)
-                                 ? static_cast<double>(stats.p_to_e_migrations) /
-                                       static_cast<double>(stats.total_migrations)
-                                 : 0.0;
+    double p_to_e_fraction = fractionOf(stats.p_to_e_migrations, stats.total_migrations);
 
-    // E-core occupancy: number of migrations that arrive at or stay on E-cores
+    // Share of migrations that land on an E-core
     double e_core_fraction =
-        (stats.total_migrations > 0)
-            ? static_cast<double>(stats.e_to_e_migrations + stats.p_to_e_migrations) /
-                  static_cast<double>(stats.total_migrations)
-            : 0.0;
+        fractionOf(stats.p_to_e_migrations + stats.e_to_e_migrations, stats.total_migrations);
 
     // Total cross-type migration count
     std::uint32_t cross_type = stats.p_to_e_migrations + stats.e_to_p_migrations;
