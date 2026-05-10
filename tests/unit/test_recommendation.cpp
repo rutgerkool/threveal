@@ -424,6 +424,18 @@ TEST_CASE("RecommendationEngine results carry the thread identity",
     REQUIRE(results[0].comm == "thread_42");
 }
 
+TEST_CASE("RecommendationEngine reports zero fractions for a thread without migrations",
+          "[analysis][RecommendationEngine]")
+{
+    RecommendationEngine engine(kOneSecondNs);
+
+    auto results = engine.analyze({makeStats(42, 0, 0, 0, 0, 0)});
+
+    REQUIRE(results[0].recommendation == AffinityRecommendation::kNone);
+    REQUIRE(results[0].p_to_e_fraction == 0.0);
+    REQUIRE(results[0].migration_rate_per_second == 0.0);
+}
+
 TEST_CASE("toString(AffinityRecommendation) returns correct labels",
           "[analysis][RecommendationEngine]")
 {
