@@ -11,6 +11,8 @@
 
 #include <cstdint>
 #include <fmt/format.h>
+#include <optional>
+#include <utility>
 #include <vector>
 
 namespace threveal::analysis
@@ -107,18 +109,10 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
         return result;
     }
 
-    // Significant P to E fraction with measurable IPC loss
-    bool high_p_to_e_fraction = (p_to_e_fraction >= p_to_e_fraction_threshold_);
-    bool significant_ipc_loss = (stats.avg_ipc_loss_on_p_to_e < ipc_loss_threshold_);
-
-    if (high_p_to_e_fraction && significant_ipc_loss)
+    if (auto outcome = pinToPCoresRule(stats, p_to_e_fraction))
     {
-        result.recommendation = AffinityRecommendation::kPinToPCores;
-        result.explanation = fmt::format(
-            "Thread experiences an average IPC loss of {:.2f} on P→E migrations "
-            "({:.0f}% of all migrations). "
-            "Pinning to P-cores should eliminate this migration penalty.",
-            stats.avg_ipc_loss_on_p_to_e, p_to_e_fraction * 100.0);
+        result.recommendation = outcome->recommendation;
+        result.explanation = std::move(outcome->explanation);
         return result;
     }
 
@@ -172,6 +166,28 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
         "no high-frequency concern. No action required.",
         stats.total_migrations);
     return result;
+}
+
+auto RecommendationEngine::pinToPCoresRule(const ThreadStatistics& stats,
+                                           double p_to_e_fraction) const
+    -> std::optional<RuleOutcome>
+{
+    bool high_p_to_e_fraction = (p_to_e_fraction >= p_to_e_fraction_threshold_);
+    bool significant_ipc_loss = (stats.avg_ipc_loss_on_p_to_e < ipc_loss_threshold_);
+
+    if (!high_p_to_e_fraction || !significant_ipc_loss)
+    {
+        return std::nullopt;
+    }
+
+    return RuleOutcome{
+        .recommendation = AffinityRecommendation::kPinToPCores,
+        .explanation =
+            fmt::format("Thread experiences an average IPC loss of {:.2f} on P→E migrations "
+                        "({:.0f}% of all migrations). "
+                        "Pinning to P-cores should eliminate this migration penalty.",
+                        stats.avg_ipc_loss_on_p_to_e, p_to_e_fraction * 100.0),
+    };
 }
 
 }  // namespace threveal::analysis

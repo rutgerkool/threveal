@@ -11,6 +11,7 @@
 #include "threveal/analysis/migration_analyzer.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -190,6 +191,15 @@ class RecommendationEngine
 
   private:
     /**
+     *  Recommendation and explanation produced by a rule that matched.
+     */
+    struct RuleOutcome
+    {
+        AffinityRecommendation recommendation;
+        std::string explanation;
+    };
+
+    /**
      *  Generates a recommendation for a single thread.
      *
      *  @param      stats  Statistics for the thread to analyse.
@@ -205,6 +215,16 @@ class RecommendationEngine
      */
     [[nodiscard]] auto computeMigrationRate(std::uint32_t total_migrations) const noexcept
         -> double;
+
+    /**
+     *  Recommends P-core pinning when P to E migrations are frequent and costly.
+     *
+     *  @param      stats            Statistics for the thread.
+     *  @param      p_to_e_fraction  Share of the thread's migrations that are P to E.
+     *  @return     The outcome if the rule matches, otherwise std::nullopt.
+     */
+    [[nodiscard]] auto pinToPCoresRule(const ThreadStatistics& stats, double p_to_e_fraction) const
+        -> std::optional<RuleOutcome>;
 
     std::uint64_t profiling_duration_ns_;
     std::uint32_t min_migrations_{kDefaultMinMigrations};
