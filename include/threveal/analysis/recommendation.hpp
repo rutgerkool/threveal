@@ -234,6 +234,16 @@ class RecommendationEngine
      */
     [[nodiscard]] auto reduceMigrationsRule(double rate) const -> std::optional<RuleOutcome>;
 
+    /**
+     *  Recommends E-core pinning when the thread mostly lands on E-cores and gains
+     *  little from being moved to a P-core.
+     *
+     *  @param      stats  Statistics for the thread.
+     *  @return     The outcome if the rule matches, otherwise std::nullopt.
+     */
+    [[nodiscard]] auto pinToECoresRule(const ThreadStatistics& stats) const
+        -> std::optional<RuleOutcome>;
+
     std::uint64_t profiling_duration_ns_;
     std::uint32_t min_migrations_{kDefaultMinMigrations};
     double ipc_loss_threshold_{kDefaultIpcLossThreshold};

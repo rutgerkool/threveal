@@ -85,10 +85,6 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
 
     double p_to_e_fraction = fractionOf(stats.p_to_e_migrations, stats.total_migrations);
 
-    // Share of migrations that land on an E-core
-    double e_core_fraction =
-        fractionOf(stats.p_to_e_migrations + stats.e_to_e_migrations, stats.total_migrations);
-
     // Total cross-type migration count
     std::uint32_t cross_type = stats.p_to_e_migrations + stats.e_to_p_migrations;
 
@@ -123,21 +119,10 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
         return result;
     }
 
-    // Thread predominantly on E-cores with no P-core benefit
-    bool mostly_on_e_cores = (e_core_fraction > e_core_majority_threshold_);
-    bool no_significant_p_core_benefit = (stats.avg_ipc_gain_on_e_to_p < significant_ipc_gain_);
-
-    // Only recommend E-core pinning if the scheduler is actually migrating the thread
-    bool is_being_pulled_to_p_cores = (stats.e_to_p_migrations > 0);
-
-    if (mostly_on_e_cores && no_significant_p_core_benefit && is_being_pulled_to_p_cores)
+    if (auto outcome = pinToECoresRule(stats))
     {
-        result.recommendation = AffinityRecommendation::kPinToECores;
-        result.explanation = fmt::format(
-            "Thread has {:.0f}% E-core activity and gains only {:.2f} IPC "
-            "when migrated to a P-core. "
-            "Pinning to E-cores eliminates unnecessary migrations without harming throughput.",
-            e_core_fraction * 100.0, stats.avg_ipc_gain_on_e_to_p);
+        result.recommendation = outcome->recommendation;
+        result.explanation = std::move(outcome->explanation);
         return result;
     }
 
@@ -199,6 +184,34 @@ auto RecommendationEngine::reduceMigrationsRule(double rate) const -> std::optio
                         "Excessive migration frequency causes repeated cache-state destruction. "
                         "Pinning to a fixed core set should reduce this overhead.",
                         rate),
+    };
+}
+
+auto RecommendationEngine::pinToECoresRule(const ThreadStatistics& stats) const
+    -> std::optional<RuleOutcome>
+{
+    // Share of migrations that land on an E-core
+    double e_core_fraction =
+        fractionOf(stats.p_to_e_migrations + stats.e_to_e_migrations, stats.total_migrations);
+
+    bool mostly_on_e_cores = (e_core_fraction > e_core_majority_threshold_);
+    bool no_significant_p_core_benefit = (stats.avg_ipc_gain_on_e_to_p < significant_ipc_gain_);
+
+    // Only worth pinning if the scheduler actually moves the thread to P-cores
+    bool is_being_pulled_to_p_cores = (stats.e_to_p_migrations > 0);
+
+    if (!mostly_on_e_cores || !no_significant_p_core_benefit || !is_being_pulled_to_p_cores)
+    {
+        return std::nullopt;
+    }
+
+    return RuleOutcome{
+        .recommendation = AffinityRecommendation::kPinToECores,
+        .explanation = fmt::format(
+            "Thread has {:.0f}% E-core activity and gains only {:.2f} IPC "
+            "when migrated to a P-core. "
+            "Pinning to E-cores eliminates unnecessary migrations without harming throughput.",
+            e_core_fraction * 100.0, stats.avg_ipc_gain_on_e_to_p),
     };
 }
 
