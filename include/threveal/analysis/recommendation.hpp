@@ -226,6 +226,14 @@ class RecommendationEngine
     [[nodiscard]] auto pinToPCoresRule(const ThreadStatistics& stats, double p_to_e_fraction) const
         -> std::optional<RuleOutcome>;
 
+    /**
+     *  Recommends reducing migrations when the thread migrates very frequently.
+     *
+     *  @param      rate  The thread's migrations per second.
+     *  @return     The outcome if the rule matches, otherwise std::nullopt.
+     */
+    [[nodiscard]] auto reduceMigrationsRule(double rate) const -> std::optional<RuleOutcome>;
+
     std::uint64_t profiling_duration_ns_;
     std::uint32_t min_migrations_{kDefaultMinMigrations};
     double ipc_loss_threshold_{kDefaultIpcLossThreshold};

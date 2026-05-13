@@ -116,15 +116,10 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
         return result;
     }
 
-    // Very high migration frequency
-    if (rate >= high_migration_rate_)
+    if (auto outcome = reduceMigrationsRule(rate))
     {
-        result.recommendation = AffinityRecommendation::kReduceMigrations;
-        result.explanation = fmt::format(
-            "Thread is migrating at {:.0f} migrations/second. "
-            "Excessive migration frequency causes repeated cache-state destruction. "
-            "Pinning to a fixed core set should reduce this overhead.",
-            rate);
+        result.recommendation = outcome->recommendation;
+        result.explanation = std::move(outcome->explanation);
         return result;
     }
 
@@ -187,6 +182,23 @@ auto RecommendationEngine::pinToPCoresRule(const ThreadStatistics& stats,
                         "({:.0f}% of all migrations). "
                         "Pinning to P-cores should eliminate this migration penalty.",
                         stats.avg_ipc_loss_on_p_to_e, p_to_e_fraction * 100.0),
+    };
+}
+
+auto RecommendationEngine::reduceMigrationsRule(double rate) const -> std::optional<RuleOutcome>
+{
+    if (rate < high_migration_rate_)
+    {
+        return std::nullopt;
+    }
+
+    return RuleOutcome{
+        .recommendation = AffinityRecommendation::kReduceMigrations,
+        .explanation =
+            fmt::format("Thread is migrating at {:.0f} migrations/second. "
+                        "Excessive migration frequency causes repeated cache-state destruction. "
+                        "Pinning to a fixed core set should reduce this overhead.",
+                        rate),
     };
 }
 
