@@ -244,6 +244,15 @@ class RecommendationEngine
     [[nodiscard]] auto pinToECoresRule(const ThreadStatistics& stats) const
         -> std::optional<RuleOutcome>;
 
+    /**
+     *  Flags cross-type migrations that none of the other rules could explain.
+     *
+     *  @param      stats  Statistics for the thread.
+     *  @return     The outcome if the rule matches, otherwise std::nullopt.
+     */
+    [[nodiscard]] static auto inconclusiveRule(const ThreadStatistics& stats)
+        -> std::optional<RuleOutcome>;
+
     std::uint64_t profiling_duration_ns_;
     std::uint32_t min_migrations_{kDefaultMinMigrations};
     double ipc_loss_threshold_{kDefaultIpcLossThreshold};

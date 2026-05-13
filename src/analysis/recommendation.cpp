@@ -85,9 +85,6 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
 
     double p_to_e_fraction = fractionOf(stats.p_to_e_migrations, stats.total_migrations);
 
-    // Total cross-type migration count
-    std::uint32_t cross_type = stats.p_to_e_migrations + stats.e_to_p_migrations;
-
     ThreadRecommendation result{
         .tid = stats.tid,
         .pid = stats.pid,
@@ -126,17 +123,10 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
         return result;
     }
 
-    // Cross-type activity exists but patterns are ambiguous
-    bool has_cross_type_activity = (cross_type > 0);
-
-    if (has_cross_type_activity)
+    if (auto outcome = inconclusiveRule(stats))
     {
-        result.recommendation = AffinityRecommendation::kInvestigateFurther;
-        result.explanation = fmt::format(
-            "Thread has {} cross-type migration(s) (P→E: {}, E→P: {}) "
-            "but patterns are inconclusive. "
-            "Manual inspection of the profiling data is recommended.",
-            cross_type, stats.p_to_e_migrations, stats.e_to_p_migrations);
+        result.recommendation = outcome->recommendation;
+        result.explanation = std::move(outcome->explanation);
         return result;
     }
 
@@ -212,6 +202,24 @@ auto RecommendationEngine::pinToECoresRule(const ThreadStatistics& stats) const
             "when migrated to a P-core. "
             "Pinning to E-cores eliminates unnecessary migrations without harming throughput.",
             e_core_fraction * 100.0, stats.avg_ipc_gain_on_e_to_p),
+    };
+}
+
+auto RecommendationEngine::inconclusiveRule(const ThreadStatistics& stats)
+    -> std::optional<RuleOutcome>
+{
+    std::uint32_t cross_type = stats.p_to_e_migrations + stats.e_to_p_migrations;
+    if (cross_type == 0)
+    {
+        return std::nullopt;
+    }
+
+    return RuleOutcome{
+        .recommendation = AffinityRecommendation::kInvestigateFurther,
+        .explanation = fmt::format("Thread has {} cross-type migration(s) (P→E: {}, E→P: {}) "
+                                   "but patterns are inconclusive. "
+                                   "Manual inspection of the profiling data is recommended.",
+                                   cross_type, stats.p_to_e_migrations, stats.e_to_p_migrations),
     };
 }
 
