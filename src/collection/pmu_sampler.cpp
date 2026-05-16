@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <thread>
 #include <time.h>
+#include <unistd.h>
 #include <utility>
 
 namespace threveal::collection
@@ -126,14 +127,17 @@ auto PmuSampler::create(pid_t tid, SampleCallback callback, std::chrono::microse
         interval = kMinInterval;
     }
 
+    // tid 0 means the calling thread; resolve it so samples carry its real TID
+    pid_t target_tid = (tid == 0) ? gettid() : tid;
+
     // Create PMU counter group for the target thread
-    auto group = PmuGroup::create(tid);
+    auto group = PmuGroup::create(target_tid);
     if (!group)
     {
         return std::unexpected(group.error());
     }
 
-    return PmuSampler{tid, std::move(*group), std::move(callback), interval};
+    return PmuSampler{target_tid, std::move(*group), std::move(callback), interval};
 }
 
 auto PmuSampler::start() -> std::expected<void, core::PmuError>

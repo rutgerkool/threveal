@@ -119,7 +119,7 @@ class PmuSampler
     /**
      *  Returns the target thread ID.
      *
-     *  @return     The thread ID being monitored.
+     *  @return     The thread ID being monitored, never 0.
      */
     [[nodiscard]] auto targetTid() const noexcept -> pid_t;
 

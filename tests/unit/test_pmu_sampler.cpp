@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <mutex>
 #include <thread>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -372,7 +373,7 @@ TEST_CASE("PmuSampler destructor stops sampling", "[collection][PmuSampler]")
     REQUIRE(collector.count() > 0);
 }
 
-TEST_CASE("PmuSampler targetTid returns configured TID", "[collection][PmuSampler]")
+TEST_CASE("PmuSampler resolves tid 0 to the calling thread", "[collection][PmuSampler]")
 {
     if (!hasPmuAccess())
     {
@@ -392,5 +393,5 @@ TEST_CASE("PmuSampler targetTid returns configured TID", "[collection][PmuSample
         SKIP("PMU group creation failed");
     }
 
-    REQUIRE(sampler->targetTid() == 0);
+    REQUIRE(sampler->targetTid() == gettid());
 }
