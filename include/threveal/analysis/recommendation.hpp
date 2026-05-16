@@ -208,6 +208,17 @@ class RecommendationEngine
     [[nodiscard]] auto recommend(const ThreadStatistics& stats) const -> ThreadRecommendation;
 
     /**
+     *  Applies the recommendation rules in priority order.
+     *
+     *  @param      stats            Statistics for the thread.
+     *  @param      rate             The thread's migrations per second.
+     *  @param      p_to_e_fraction  Share of the thread's migrations that are P to E.
+     *  @return     The outcome of the first rule that matches.
+     */
+    [[nodiscard]] auto evaluateRules(const ThreadStatistics& stats, double rate,
+                                     double p_to_e_fraction) const -> RuleOutcome;
+
+    /**
      *  Computes the migration rate in migrations per second.
      *
      *  @param      total_migrations  Number of observed migrations.

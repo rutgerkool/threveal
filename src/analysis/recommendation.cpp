@@ -82,56 +82,51 @@ auto RecommendationEngine::analyze(const std::vector<ThreadStatistics>& thread_s
 auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> ThreadRecommendation
 {
     double rate = computeMigrationRate(stats.total_migrations);
-
     double p_to_e_fraction = fractionOf(stats.p_to_e_migrations, stats.total_migrations);
 
-    ThreadRecommendation result{
+    auto outcome = evaluateRules(stats, rate, p_to_e_fraction);
+
+    return ThreadRecommendation{
         .tid = stats.tid,
         .pid = stats.pid,
         .comm = stats.comm,
-        .recommendation = AffinityRecommendation::kNone,
-        .explanation = "",
+        .recommendation = outcome.recommendation,
+        .explanation = std::move(outcome.explanation),
         .migration_rate_per_second = rate,
         .p_to_e_fraction = p_to_e_fraction,
     };
+}
 
-    // Not enough data to draw conclusions
+auto RecommendationEngine::evaluateRules(const ThreadStatistics& stats, double rate,
+                                         double p_to_e_fraction) const -> RuleOutcome
+{
     if (stats.total_migrations < min_migrations_)
     {
-        result.explanation = "Insufficient migration data for analysis.";
-        return result;
+        return RuleOutcome{
+            .recommendation = AffinityRecommendation::kNone,
+            .explanation = "Insufficient migration data for analysis.",
+        };
     }
 
+    // The first rule that matches decides, so the order below is the rule priority
     if (auto outcome = pinToPCoresRule(stats, p_to_e_fraction))
     {
-        result.recommendation = outcome->recommendation;
-        result.explanation = std::move(outcome->explanation);
-        return result;
+        return std::move(*outcome);
     }
-
     if (auto outcome = reduceMigrationsRule(rate))
     {
-        result.recommendation = outcome->recommendation;
-        result.explanation = std::move(outcome->explanation);
-        return result;
+        return std::move(*outcome);
     }
-
     if (auto outcome = pinToECoresRule(stats))
     {
-        result.recommendation = outcome->recommendation;
-        result.explanation = std::move(outcome->explanation);
-        return result;
+        return std::move(*outcome);
     }
-
     if (auto outcome = inconclusiveRule(stats))
     {
-        result.recommendation = outcome->recommendation;
-        result.explanation = std::move(outcome->explanation);
-        return result;
+        return std::move(*outcome);
     }
 
-    result.explanation = noActionOutcome(stats).explanation;
-    return result;
+    return noActionOutcome(stats);
 }
 
 auto RecommendationEngine::pinToPCoresRule(const ThreadStatistics& stats,
