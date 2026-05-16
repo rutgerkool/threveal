@@ -253,6 +253,14 @@ class RecommendationEngine
     [[nodiscard]] static auto inconclusiveRule(const ThreadStatistics& stats)
         -> std::optional<RuleOutcome>;
 
+    /**
+     *  Builds the outcome for a thread that needs no action.
+     *
+     *  @param      stats  Statistics for the thread.
+     *  @return     A kNone outcome with an explanation.
+     */
+    [[nodiscard]] static auto noActionOutcome(const ThreadStatistics& stats) -> RuleOutcome;
+
     std::uint64_t profiling_duration_ns_;
     std::uint32_t min_migrations_{kDefaultMinMigrations};
     double ipc_loss_threshold_{kDefaultIpcLossThreshold};

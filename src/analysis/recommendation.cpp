@@ -130,11 +130,7 @@ auto RecommendationEngine::recommend(const ThreadStatistics& stats) const -> Thr
         return result;
     }
 
-    // Default: clean profile, no action needed
-    result.explanation = fmt::format(
-        "Thread has {} migration(s) with no cross-type activity and "
-        "no high-frequency concern. No action required.",
-        stats.total_migrations);
+    result.explanation = noActionOutcome(stats).explanation;
     return result;
 }
 
@@ -220,6 +216,16 @@ auto RecommendationEngine::inconclusiveRule(const ThreadStatistics& stats)
                                    "but patterns are inconclusive. "
                                    "Manual inspection of the profiling data is recommended.",
                                    cross_type, stats.p_to_e_migrations, stats.e_to_p_migrations),
+    };
+}
+
+auto RecommendationEngine::noActionOutcome(const ThreadStatistics& stats) -> RuleOutcome
+{
+    return RuleOutcome{
+        .recommendation = AffinityRecommendation::kNone,
+        .explanation = fmt::format("Thread has {} migration(s) with no cross-type activity and "
+                                   "no high-frequency concern. No action required.",
+                                   stats.total_migrations),
     };
 }
 
