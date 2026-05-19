@@ -395,3 +395,39 @@ TEST_CASE("PmuSampler resolves tid 0 to the calling thread", "[collection][PmuSa
 
     REQUIRE(sampler->targetTid() == gettid());
 }
+
+TEST_CASE("PmuSampler samples carry the resolved tid", "[collection][PmuSampler]")
+{
+    if (!hasPmuAccess())
+    {
+        SKIP("PMU access not permitted");
+    }
+
+    SampleCollector collector;
+    auto callback = [&collector](const PmuSample& sample)
+    {
+        collector.addSample(sample);
+    };
+
+    auto sampler = PmuSampler::create(0, callback, std::chrono::milliseconds(2));
+
+    if (!sampler.has_value())
+    {
+        SKIP("PMU group creation failed");
+    }
+
+    auto start_result = sampler->start();
+    REQUIRE(start_result.has_value());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    sampler->stop();
+
+    auto samples = collector.samples();
+    REQUIRE_FALSE(samples.empty());
+
+    for (const auto& sample : samples)
+    {
+        REQUIRE(sample.tid == static_cast<std::uint32_t>(gettid()));
+    }
+}
