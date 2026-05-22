@@ -11,6 +11,7 @@
 #include "threveal/collection/pmu_sampler.hpp"
 #include "threveal/core/errors.hpp"
 #include "threveal/core/events.hpp"
+#include "threveal/core/topology.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <mutex>
 #include <thread>
+#include <time.h>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -27,10 +29,23 @@
 using threveal::collection::PmuSampler;
 using threveal::core::PmuError;
 using threveal::core::PmuSample;
+using threveal::core::TopologyMap;
 using threveal::test::hasPmuAccess;
+using threveal::test::ScopedCpuPin;
 
 namespace
 {
+
+/**
+ *  Returns the current time on the clock PmuSampler uses for its timestamps.
+ */
+auto monotonicNowNs() -> std::uint64_t
+{
+    timespec ts{};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (static_cast<std::uint64_t>(ts.tv_sec) * 1'000'000'000ULL) +
+           static_cast<std::uint64_t>(ts.tv_nsec);
+}
 
 /**
  *  Thread-safe sample collector for testing.
@@ -429,5 +444,65 @@ TEST_CASE("PmuSampler samples carry the resolved tid", "[collection][PmuSampler]
     for (const auto& sample : samples)
     {
         REQUIRE(sample.tid == static_cast<std::uint32_t>(gettid()));
+    }
+}
+
+TEST_CASE("PmuSampler records the CPU of the target thread", "[collection][PmuSampler]")
+{
+    if (!hasPmuAccess())
+    {
+        SKIP("PMU access not permitted");
+    }
+
+    auto topology = TopologyMap::loadFromSysfs();
+    if (!topology.has_value() || !topology->isHybrid())
+    {
+        SKIP("Requires a hybrid CPU");
+    }
+
+    auto p_core = topology->getPCores().front();
+    auto e_core = topology->getECores().front();
+
+    ScopedCpuPin sampler_pin(p_core);
+    REQUIRE(sampler_pin.pinned());
+
+    SampleCollector collector;
+    auto callback = [&collector](const PmuSample& sample)
+    {
+        collector.addSample(sample);
+    };
+
+    auto sampler = PmuSampler::create(0, callback, std::chrono::milliseconds(2));
+
+    if (!sampler.has_value())
+    {
+        SKIP("PMU group creation failed");
+    }
+
+    auto start_result = sampler->start();
+    REQUIRE(start_result.has_value());
+
+    std::uint64_t pinned_at_ns = 0;
+    {
+        ScopedCpuPin target_pin(e_core);
+        REQUIRE(target_pin.pinned());
+
+        pinned_at_ns = monotonicNowNs();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        sampler->stop();
+    }
+
+    auto samples = collector.samples();
+    std::erase_if(samples,
+                  [pinned_at_ns](const PmuSample& sample)
+                  {
+                      return sample.timestamp_ns < pinned_at_ns;
+                  });
+    REQUIRE_FALSE(samples.empty());
+
+    for (const auto& sample : samples)
+    {
+        REQUIRE(sample.cpu_id == e_core);
     }
 }
