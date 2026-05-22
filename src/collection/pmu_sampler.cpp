@@ -8,6 +8,7 @@
 #include "threveal/collection/pmu_sampler.hpp"
 
 #include "threveal/collection/pmu_group.hpp"
+#include "threveal/collection/thread_cpu.hpp"
 #include "threveal/core/errors.hpp"
 #include "threveal/core/events.hpp"
 #include "threveal/core/types.hpp"
@@ -17,7 +18,6 @@
 #include <cstdint>
 #include <expected>
 #include <functional>
-#include <sched.h>
 #include <stop_token>
 #include <sys/types.h>
 #include <thread>
@@ -47,22 +47,6 @@ auto getTimestampNs() noexcept -> std::uint64_t
     constexpr std::uint64_t kNsPerSecond = 1'000'000'000ULL;
     return (static_cast<std::uint64_t>(ts.tv_sec) * kNsPerSecond) +
            static_cast<std::uint64_t>(ts.tv_nsec);
-}
-
-/**
- *  Gets the CPU ID where the calling thread is currently running.
- *
- *  @return     The current CPU ID, or 0 if detection fails.
- */
-auto getCurrentCpu() noexcept -> core::CpuId
-{
-    // sched_getcpu() returns the CPU number of the calling thread
-    int cpu = sched_getcpu();
-    if (cpu < 0)
-    {
-        return 0;
-    }
-    return static_cast<core::CpuId>(cpu);
 }
 
 }  // namespace
@@ -248,12 +232,17 @@ auto PmuSampler::collectSample() -> bool
 
     auto timestamp = getTimestampNs();
 
-    auto cpu_id = getCurrentCpu();
+    // The sampler runs on its own thread, so ask the kernel where the target last ran
+    auto cpu_id = readLastCpu(tid_);
+    if (!cpu_id)
+    {
+        return false;
+    }
 
     core::PmuSample sample{
         .timestamp_ns = timestamp,
         .tid = static_cast<std::uint32_t>(tid_),
-        .cpu_id = cpu_id,
+        .cpu_id = *cpu_id,
         .instructions = reading->instructions,
         .cycles = reading->cycles,
         .llc_misses = reading->llc_load_misses,
