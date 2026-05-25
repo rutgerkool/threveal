@@ -153,6 +153,7 @@ class PmuSampler
     PmuGroup group_;
     SampleCallback callback_;
     std::chrono::microseconds interval_;
+    PmuGroupReading previous_reading_{};
 
     std::jthread sampling_thread_;
     std::atomic<std::uint64_t> sample_count_{0};

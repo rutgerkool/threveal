@@ -67,6 +67,7 @@ PmuSampler::PmuSampler(PmuSampler&& other) noexcept
       group_(std::move(other.group_)),
       callback_(std::move(other.callback_)),
       interval_(other.interval_),
+      previous_reading_(other.previous_reading_),
       sampling_thread_(std::move(other.sampling_thread_)),
       sample_count_(other.sample_count_.load()),
       running_(other.running_.load())
@@ -86,6 +87,7 @@ auto PmuSampler::operator=(PmuSampler&& other) noexcept -> PmuSampler&
         group_ = std::move(other.group_);
         callback_ = std::move(other.callback_);
         interval_ = other.interval_;
+        previous_reading_ = other.previous_reading_;
         sampling_thread_ = std::move(other.sampling_thread_);
         sample_count_ = other.sample_count_.load();
         running_ = other.running_.load();
@@ -138,6 +140,7 @@ auto PmuSampler::start() -> std::expected<void, core::PmuError>
     {
         return std::unexpected(reset_result.error());
     }
+    previous_reading_ = {};
 
     // Enable PMU counters
     auto enable_result = group_.enable();
@@ -239,15 +242,19 @@ auto PmuSampler::collectSample() -> bool
         return false;
     }
 
+    // Counters accumulate from start(), so each sample reports the change since the last one
+    auto delta = reading->since(previous_reading_);
+    previous_reading_ = *reading;
+
     core::PmuSample sample{
         .timestamp_ns = timestamp,
         .tid = static_cast<std::uint32_t>(tid_),
         .cpu_id = *cpu_id,
-        .instructions = reading->instructions,
-        .cycles = reading->cycles,
-        .llc_misses = reading->llc_load_misses,
-        .llc_references = reading->llc_loads,
-        .branch_misses = reading->branch_misses,
+        .instructions = delta.instructions,
+        .cycles = delta.cycles,
+        .llc_misses = delta.llc_load_misses,
+        .llc_references = delta.llc_loads,
+        .branch_misses = delta.branch_misses,
     };
 
     callback_(sample);
