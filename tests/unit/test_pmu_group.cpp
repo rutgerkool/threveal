@@ -115,6 +115,52 @@ TEST_CASE("PmuGroupReading LLC miss rate calculation", "[collection][PmuGroupRea
     }
 }
 
+TEST_CASE("PmuGroupReading since returns the per-counter difference",
+          "[collection][PmuGroupReading]")
+{
+    PmuGroupReading earlier{
+        .cycles = 1000,
+        .instructions = 2000,
+        .llc_loads = 300,
+        .llc_load_misses = 40,
+        .branch_misses = 5,
+    };
+    PmuGroupReading later{
+        .cycles = 1600,
+        .instructions = 3200,
+        .llc_loads = 370,
+        .llc_load_misses = 49,
+        .branch_misses = 8,
+    };
+
+    auto delta = later.since(earlier);
+
+    REQUIRE(delta.cycles == 600);
+    REQUIRE(delta.instructions == 1200);
+    REQUIRE(delta.llc_loads == 70);
+    REQUIRE(delta.llc_load_misses == 9);
+    REQUIRE(delta.branch_misses == 3);
+}
+
+TEST_CASE("PmuGroupReading since itself is zero", "[collection][PmuGroupReading]")
+{
+    PmuGroupReading reading{
+        .cycles = 1000,
+        .instructions = 2000,
+        .llc_loads = 300,
+        .llc_load_misses = 40,
+        .branch_misses = 5,
+    };
+
+    auto delta = reading.since(reading);
+
+    REQUIRE(delta.cycles == 0);
+    REQUIRE(delta.instructions == 0);
+    REQUIRE(delta.llc_loads == 0);
+    REQUIRE(delta.llc_load_misses == 0);
+    REQUIRE(delta.branch_misses == 0);
+}
+
 TEST_CASE("PmuGroup creation requires permissions", "[collection][PmuGroup]")
 {
     auto group = PmuGroup::create();
