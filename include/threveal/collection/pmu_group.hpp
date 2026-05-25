@@ -76,6 +76,24 @@ struct PmuGroupReading
         }
         return static_cast<double>(llc_load_misses) / static_cast<double>(llc_loads);
     }
+
+    /**
+     *  Returns the counts accumulated since an earlier reading of the same group.
+     *
+     *  @param      earlier  A reading taken before this one.
+     *  @return     The per-counter difference.
+     */
+    [[nodiscard]] constexpr auto since(const PmuGroupReading& earlier) const noexcept
+        -> PmuGroupReading
+    {
+        return PmuGroupReading{
+            .cycles = cycles - earlier.cycles,
+            .instructions = instructions - earlier.instructions,
+            .llc_loads = llc_loads - earlier.llc_loads,
+            .llc_load_misses = llc_load_misses - earlier.llc_load_misses,
+            .branch_misses = branch_misses - earlier.branch_misses,
+        };
+    }
 };
 
 /**
