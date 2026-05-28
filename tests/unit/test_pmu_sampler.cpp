@@ -506,3 +506,61 @@ TEST_CASE("PmuSampler records the CPU of the target thread", "[collection][PmuSa
         REQUIRE(sample.cpu_id == e_core);
     }
 }
+
+TEST_CASE("PmuSampler reports counts per interval", "[collection][PmuSampler]")
+{
+    if (!hasPmuAccess())
+    {
+        SKIP("PMU access not permitted");
+    }
+
+    SampleCollector collector;
+    auto callback = [&collector](const PmuSample& sample)
+    {
+        collector.addSample(sample);
+    };
+
+    auto sampler = PmuSampler::create(0, callback, std::chrono::milliseconds(2));
+
+    if (!sampler.has_value())
+    {
+        SKIP("PMU group creation failed");
+    }
+
+    auto start_result = sampler->start();
+    REQUIRE(start_result.has_value());
+
+    volatile std::uint64_t sum = 0;
+    auto busy_start = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - busy_start < std::chrono::milliseconds(20))
+    {
+        for (std::uint64_t i = 0; i < 1000; ++i)
+        {
+            sum += i;
+        }
+    }
+    (void)sum;
+
+    // A sleeping thread retires no user-space instructions
+    constexpr std::uint64_t kSettleNs = 10'000'000;
+    std::uint64_t idle_from_ns = monotonicNowNs() + kSettleNs;
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    std::uint64_t idle_until_ns = monotonicNowNs();
+
+    sampler->stop();
+
+    auto samples = collector.samples();
+    std::erase_if(samples,
+                  [idle_from_ns, idle_until_ns](const PmuSample& sample)
+                  {
+                      return sample.timestamp_ns < idle_from_ns ||
+                             sample.timestamp_ns > idle_until_ns;
+                  });
+    REQUIRE_FALSE(samples.empty());
+
+    constexpr std::uint64_t kIdleInstructionLimit = 1000;
+    for (const auto& sample : samples)
+    {
+        REQUIRE(sample.instructions < kIdleInstructionLimit);
+    }
+}
