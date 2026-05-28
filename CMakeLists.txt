@@ -215,6 +215,14 @@ if(THREVEAL_ENABLE_TESTING)
     Catch2::Catch2WithMain
   )
 
+  add_executable(test_pmu_interpolation
+    tests/unit/test_pmu_interpolation.cpp
+  )
+  target_link_libraries(test_pmu_interpolation PRIVATE
+    threveal_core
+    Catch2::Catch2WithMain
+  )
+
   add_executable(test_migration_analyzer
     tests/unit/test_migration_analyzer.cpp
   )
@@ -241,6 +249,7 @@ if(THREVEAL_ENABLE_TESTING)
   add_test(NAME perf_event_tests COMMAND test_perf_event)
   add_test(NAME thread_cpu_tests COMMAND test_thread_cpu)
   add_test(NAME migration_analyzer_tests COMMAND test_migration_analyzer)
+  add_test(NAME pmu_interpolation_tests COMMAND test_pmu_interpolation)
   add_test(NAME recommendation_tests COMMAND test_recommendation)
 
   if(THREVEAL_ENABLE_BPF)
@@ -266,7 +275,7 @@ if(THREVEAL_ENABLE_TESTING)
 
   # Configure AddressSanitizer to work correctly with ctest
   if(THREVEAL_ENABLE_SANITIZERS)
-    set_tests_properties(topology_tests events_tests event_store_tests errors_tests pmu_counter_tests pmu_group_tests pmu_sampler_tests perf_event_tests thread_cpu_tests migration_analyzer_tests recommendation_tests PROPERTIES
+    set_tests_properties(topology_tests events_tests event_store_tests errors_tests pmu_counter_tests pmu_group_tests pmu_sampler_tests perf_event_tests thread_cpu_tests migration_analyzer_tests pmu_interpolation_tests recommendation_tests PROPERTIES
       ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0"
     )
   endif()
