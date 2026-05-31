@@ -30,6 +30,16 @@ struct CounterTotals
 };
 
 /**
+ *  Performance rates of one thread over a time window.
+ */
+struct WindowRates
+{
+    double ipc = 0.0;
+    double llc_miss_rate = 0.0;
+    double branch_miss_rate = 0.0;
+};
+
+/**
  *  Interpolates a thread's running counter totals at a point in time.
  *
  *  @param      samples  The thread's samples, sorted by timestamp.
@@ -39,6 +49,16 @@ struct CounterTotals
  */
 [[nodiscard]] auto interpolateTotals(std::span<const core::PmuSample> samples,
                                      std::uint64_t time_ns) -> std::optional<CounterTotals>;
+
+/**
+ *  Computes the rates over the window between two running totals of one thread.
+ *
+ *  @param      from  The totals at the start of the window.
+ *  @param      to    The totals at the end of the window.
+ *  @return     The rates over the window, with 0.0 for a rate whose denominator is zero.
+ */
+[[nodiscard]] auto ratesBetween(const CounterTotals& from, const CounterTotals& to) noexcept
+    -> WindowRates;
 
 }  // namespace threveal::analysis
 

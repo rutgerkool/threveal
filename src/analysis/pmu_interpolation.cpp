@@ -31,6 +31,14 @@ void addScaled(CounterTotals& totals, const core::PmuSample& sample, double frac
     totals.branch_misses += fraction * static_cast<double>(sample.branch_misses);
 }
 
+/**
+ *  Divides two counter deltas, or returns 0.0 when there is nothing to divide by.
+ */
+constexpr auto ratio(double numerator, double denominator) noexcept -> double
+{
+    return denominator > 0.0 ? numerator / denominator : 0.0;
+}
+
 }  // namespace
 
 auto interpolateTotals(std::span<const core::PmuSample> samples, std::uint64_t time_ns)
@@ -61,6 +69,18 @@ auto interpolateTotals(std::span<const core::PmuSample> samples, std::uint64_t t
     }
 
     return totals;
+}
+
+auto ratesBetween(const CounterTotals& from, const CounterTotals& to) noexcept -> WindowRates
+{
+    double instructions = to.instructions - from.instructions;
+
+    return WindowRates{
+        .ipc = ratio(instructions, to.cycles - from.cycles),
+        .llc_miss_rate =
+            ratio(to.llc_misses - from.llc_misses, to.llc_references - from.llc_references),
+        .branch_miss_rate = ratio(to.branch_misses - from.branch_misses, instructions),
+    };
 }
 
 }  // namespace threveal::analysis
