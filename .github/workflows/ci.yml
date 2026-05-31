@@ -116,6 +116,7 @@ jobs:
             build/test_perf_event
             build/test_thread_cpu
             build/test_migration_analyzer
+            build/test_pmu_interpolation
             build/test_recommendation
             build/test_ebpf_loader
             build/test_migration_tracker
@@ -163,6 +164,7 @@ jobs:
           chmod +x build/test_perf_event
           chmod +x build/test_thread_cpu
           chmod +x build/test_migration_analyzer
+          chmod +x build/test_pmu_interpolation
           chmod +x build/test_recommendation
           chmod +x build/test_ebpf_loader
           chmod +x build/test_migration_tracker
@@ -179,6 +181,7 @@ jobs:
           ./build/test_perf_event
           ./build/test_thread_cpu
           ./build/test_migration_analyzer
+          ./build/test_pmu_interpolation
           ./build/test_recommendation
           ./build/test_ebpf_loader
           ./build/test_migration_tracker
