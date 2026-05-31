@@ -14,7 +14,9 @@
 #include <vector>
 
 using Catch::Approx;
+using threveal::analysis::CounterTotals;
 using threveal::analysis::interpolateTotals;
+using threveal::analysis::ratesBetween;
 using threveal::core::PmuSample;
 
 namespace
@@ -100,4 +102,63 @@ TEST_CASE("interpolateTotals handles samples with the same timestamp",
     auto totals = interpolateTotals(samples, 1'000);
     REQUIRE(totals.has_value());
     REQUIRE(totals->instructions == Approx(30));
+}
+
+TEST_CASE("ratesBetween computes every rate over the window", "[analysis][pmu_interpolation]")
+{
+    CounterTotals from{
+        .instructions = 1000,
+        .cycles = 1000,
+        .llc_misses = 10,
+        .llc_references = 100,
+        .branch_misses = 5,
+    };
+    CounterTotals to{
+        .instructions = 3000,
+        .cycles = 2000,
+        .llc_misses = 40,
+        .llc_references = 200,
+        .branch_misses = 25,
+    };
+
+    auto rates = ratesBetween(from, to);
+
+    REQUIRE(rates.ipc == Approx(2.0));
+    REQUIRE(rates.llc_miss_rate == Approx(0.3));
+    REQUIRE(rates.branch_miss_rate == Approx(0.01));
+}
+
+TEST_CASE("ratesBetween returns zero rates for an empty window", "[analysis][pmu_interpolation]")
+{
+    CounterTotals totals{
+        .instructions = 1000,
+        .cycles = 1000,
+        .llc_misses = 10,
+        .llc_references = 100,
+        .branch_misses = 5,
+    };
+
+    auto rates = ratesBetween(totals, totals);
+
+    REQUIRE(rates.ipc == 0.0);
+    REQUIRE(rates.llc_miss_rate == 0.0);
+    REQUIRE(rates.branch_miss_rate == 0.0);
+}
+
+TEST_CASE("ratesBetween guards each denominator independently", "[analysis][pmu_interpolation]")
+{
+    CounterTotals from{};
+    CounterTotals to{
+        .instructions = 1000,
+        .cycles = 0,
+        .llc_misses = 0,
+        .llc_references = 0,
+        .branch_misses = 10,
+    };
+
+    auto rates = ratesBetween(from, to);
+
+    REQUIRE(rates.ipc == 0.0);
+    REQUIRE(rates.llc_miss_rate == 0.0);
+    REQUIRE(rates.branch_miss_rate == Approx(0.01));
 }
