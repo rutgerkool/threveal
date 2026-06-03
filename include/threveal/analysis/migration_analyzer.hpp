@@ -14,6 +14,7 @@
 #include "threveal/core/types.hpp"
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -236,10 +237,12 @@ class MigrationAnalyzer
     /**
      *  Computes the performance impact of a single migration event.
      *
-     *  @param      migration  The migration event to analyze.
+     *  @param      migration       The migration event to analyze.
+     *  @param      thread_samples  The migrated thread's PMU samples, sorted by timestamp.
      *  @return     The computed impact with confidence score.
      */
-    [[nodiscard]] auto computeImpact(const core::MigrationEvent& migration) const
+    [[nodiscard]] auto computeImpact(const core::MigrationEvent& migration,
+                                     std::span<const core::PmuSample> thread_samples) const
         -> MigrationImpact;
 
     /**

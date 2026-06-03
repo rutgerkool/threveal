@@ -16,6 +16,9 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
+#include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -44,6 +47,66 @@ namespace
         .branch_miss_delta = 0.0,
         .confidence = 0.0,
     };
+}
+
+/**
+ *  PMU samples grouped per thread, each thread's samples in time order.
+ */
+using SamplesByThread = std::unordered_map<std::uint32_t, std::vector<core::PmuSample>>;
+
+/**
+ *  Groups time-ordered PMU samples by thread.
+ */
+auto groupSamplesByThread(std::span<const core::PmuSample> samples) -> SamplesByThread
+{
+    SamplesByThread by_thread;
+    for (const auto& sample : samples)
+    {
+        by_thread[sample.tid].push_back(sample);
+    }
+    return by_thread;
+}
+
+/**
+ *  Returns the samples of one thread, or an empty span if it has none.
+ */
+auto samplesOf(const SamplesByThread& by_thread, std::uint32_t tid)
+    -> std::span<const core::PmuSample>
+{
+    auto it = by_thread.find(tid);
+    if (it == by_thread.end())
+    {
+        return {};
+    }
+    return it->second;
+}
+
+/**
+ *  Returns the last sample at or before a point in time.
+ */
+auto lastSampleAtOrBefore(std::span<const core::PmuSample> samples, std::uint64_t time_ns)
+    -> std::optional<core::PmuSample>
+{
+    auto after = std::ranges::upper_bound(samples, time_ns, {}, &core::PmuSample::timestamp_ns);
+    if (after == samples.begin())
+    {
+        return std::nullopt;
+    }
+    return *std::prev(after);
+}
+
+/**
+ *  Returns the first sample at or after a point in time.
+ */
+auto firstSampleAtOrAfter(std::span<const core::PmuSample> samples, std::uint64_t time_ns)
+    -> std::optional<core::PmuSample>
+{
+    auto it = std::ranges::lower_bound(samples, time_ns, {}, &core::PmuSample::timestamp_ns);
+    if (it == samples.end())
+    {
+        return std::nullopt;
+    }
+    return *it;
 }
 
 /**
@@ -195,6 +258,7 @@ void MigrationAnalyzer::setMinConfidence(double threshold) noexcept
 auto MigrationAnalyzer::analyze() const -> AnalysisResult
 {
     auto migrations = store_->allMigrations();
+    auto samples_by_thread = groupSamplesByThread(store_->allPmuSamples());
 
     // Compute per-migration performance impact
     std::vector<MigrationImpact> impacts;
@@ -204,7 +268,7 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
 
     for (const auto& migration : migrations)
     {
-        auto impact = computeImpact(migration);
+        auto impact = computeImpact(migration, samplesOf(samples_by_thread, migration.tid));
         if (impact.confidence >= min_confidence_)
         {
             ++correlated;
@@ -225,15 +289,16 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
     };
 }
 
-auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration) const
+auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration,
+                                      std::span<const core::PmuSample> thread_samples) const
     -> MigrationImpact
 {
     // Classify migration type using topology
     auto type = core::classifyMigration(migration, *topology_);
 
     // Find closest PMU samples on each side of the migration boundary
-    auto sample_before = store_->pmuBeforeMigration(migration);
-    auto sample_after = store_->pmuAfterMigration(migration);
+    auto sample_before = lastSampleAtOrBefore(thread_samples, migration.timestamp_ns);
+    auto sample_after = firstSampleAtOrAfter(thread_samples, migration.timestamp_ns);
 
     // If either sample is missing, return a zero-confidence impact
     if (!sample_before || !sample_after)
