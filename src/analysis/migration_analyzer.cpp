@@ -96,17 +96,26 @@ auto lastSampleAtOrBefore(std::span<const core::PmuSample> samples, std::uint64_
 }
 
 /**
- *  Returns the first sample at or after a point in time.
+ *  The first complete sampling interval after a point in time.
  */
-auto firstSampleAtOrAfter(std::span<const core::PmuSample> samples, std::uint64_t time_ns)
-    -> std::optional<core::PmuSample>
+struct FollowingInterval
 {
-    auto it = std::ranges::lower_bound(samples, time_ns, {}, &core::PmuSample::timestamp_ns);
-    if (it == samples.end())
+    std::uint64_t start_ns;
+    core::PmuSample sample;
+};
+
+/**
+ *  Returns the first sampling interval that starts at or after a point in time.
+ */
+auto firstIntervalAfter(std::span<const core::PmuSample> samples, std::uint64_t time_ns)
+    -> std::optional<FollowingInterval>
+{
+    auto boundary = std::ranges::lower_bound(samples, time_ns, {}, &core::PmuSample::timestamp_ns);
+    if (boundary == samples.end() || std::next(boundary) == samples.end())
     {
         return std::nullopt;
     }
-    return *it;
+    return FollowingInterval{.start_ns = boundary->timestamp_ns, .sample = *std::next(boundary)};
 }
 
 /**
@@ -296,19 +305,19 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration,
     // Classify migration type using topology
     auto type = core::classifyMigration(migration, *topology_);
 
-    // Find closest PMU samples on each side of the migration boundary
+    // The interval containing the migration mixes both cores, so it is skipped
     auto sample_before = lastSampleAtOrBefore(thread_samples, migration.timestamp_ns);
-    auto sample_after = firstSampleAtOrAfter(thread_samples, migration.timestamp_ns);
+    auto interval_after = firstIntervalAfter(thread_samples, migration.timestamp_ns);
 
-    // If either sample is missing, return a zero-confidence impact
-    if (!sample_before || !sample_after)
+    // If either interval is missing, return a zero-confidence impact
+    if (!sample_before || !interval_after)
     {
         return makeUncorrelatedImpact(migration, type);
     }
 
-    // Compute time gaps between samples and migration
+    // Compute time gaps between the measured intervals and the migration
     auto gap_before_ns = migration.timestamp_ns - sample_before->timestamp_ns;
-    auto gap_after_ns = sample_after->timestamp_ns - migration.timestamp_ns;
+    auto gap_after_ns = interval_after->start_ns - migration.timestamp_ns;
 
     // Reject samples that are too far from the migration event
     if (gap_before_ns > max_sample_gap_ns_ || gap_after_ns > max_sample_gap_ns_)
@@ -317,9 +326,10 @@ auto MigrationAnalyzer::computeImpact(const core::MigrationEvent& migration,
     }
 
     // Compute performance deltas across the migration boundary
-    double ipc_delta = sample_after->ipc() - sample_before->ipc();
-    double cache_miss_delta = sample_after->llcMissRate() - sample_before->llcMissRate();
-    double branch_miss_delta = sample_after->branchMissRate() - sample_before->branchMissRate();
+    const auto& sample_after = interval_after->sample;
+    double ipc_delta = sample_after.ipc() - sample_before->ipc();
+    double cache_miss_delta = sample_after.llcMissRate() - sample_before->llcMissRate();
+    double branch_miss_delta = sample_after.branchMissRate() - sample_before->branchMissRate();
 
     double confidence = calculateConfidence(gap_before_ns, gap_after_ns);
 
