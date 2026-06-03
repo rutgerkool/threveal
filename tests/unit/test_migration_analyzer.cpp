@@ -78,6 +78,20 @@ auto makeLowPerfSample(std::uint64_t timestamp_ns, std::uint32_t tid, CpuId cpu)
     return makePmuSample(timestamp_ns, tid, cpu, 1'000'000, 1'000'000, 200, 1000, 100);
 }
 
+/**
+ *  Adds the first sample after a migration and the complete interval that follows it.
+ */
+void addSamplesAfterMigration(EventStore& store, const PmuSample& first)
+{
+    constexpr std::uint64_t kFollowingIntervalNs = 50'000;
+
+    store.addPmuSample(first);
+
+    auto following = first;
+    following.timestamp_ns += kFollowingIntervalNs;
+    store.addPmuSample(following);
+}
+
 }  // namespace
 
 TEST_CASE("MigrationAnalyzer with empty store", "[analysis][MigrationAnalyzer]")
@@ -121,7 +135,7 @@ TEST_CASE("MigrationAnalyzer computes IPC delta correctly", "[analysis][Migratio
 
     store.addPmuSample(makeHighPerfSample(4'000'000, 42, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(6'000'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(6'000'000, 42, 12));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
@@ -145,7 +159,7 @@ TEST_CASE("MigrationAnalyzer computes positive IPC delta for E-to-P",
 
     store.addPmuSample(makeLowPerfSample(4'000'000, 42, 12));
     store.addMigration(makeMigration(5'000'000, 42, 12, 0));
-    store.addPmuSample(makeHighPerfSample(6'000'000, 42, 0));
+    addSamplesAfterMigration(store, makeHighPerfSample(6'000'000, 42, 0));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
@@ -166,7 +180,7 @@ TEST_CASE("MigrationAnalyzer confidence is high for close samples", "[analysis][
     // 100ns gap on each side
     store.addPmuSample(makeHighPerfSample(4'999'900, 42, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(5'000'100, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(5'000'100, 42, 12));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
@@ -186,7 +200,7 @@ TEST_CASE("MigrationAnalyzer confidence decays with distance", "[analysis][Migra
         EventStore store;
         store.addPmuSample(makeHighPerfSample(kBase - gap_ns, 42, 0));
         store.addMigration(makeMigration(kBase, 42, 0, 12));
-        store.addPmuSample(makeLowPerfSample(kBase + gap_ns, 42, 12));
+        addSamplesAfterMigration(store, makeLowPerfSample(kBase + gap_ns, 42, 12));
 
         MigrationAnalyzer analyzer(store, topology);
         auto result = analyzer.analyze();
@@ -227,7 +241,7 @@ TEST_CASE("MigrationAnalyzer respects custom max sample gap", "[analysis][Migrat
 
     store.addPmuSample(makeHighPerfSample(0, 42, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(10'000'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(10'000'000, 42, 12));
 
     SECTION("within default 10ms gap")
     {
@@ -300,7 +314,7 @@ TEST_CASE("MigrationAnalyzer handles zero-cycle PMU samples", "[analysis][Migrat
 
     store.addPmuSample(makePmuSample(4'000'000, 42, 0, 0, 0, 0, 0, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
-    store.addPmuSample(makePmuSample(6'000'000, 42, 12, 0, 0, 0, 0, 0));
+    addSamplesAfterMigration(store, makePmuSample(6'000'000, 42, 12, 0, 0, 0, 0, 0));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
@@ -319,7 +333,7 @@ TEST_CASE("MigrationAnalyzer min confidence controls aggregation", "[analysis][M
 
     store.addPmuSample(makeHighPerfSample(0, 42, 0));
     store.addMigration(makeMigration(5'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(10'000'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(10'000'000, 42, 12));
 
     SECTION("default threshold includes moderate confidence")
     {
@@ -349,9 +363,9 @@ TEST_CASE("MigrationAnalyzer correlates multiple migrations with interleaved sam
 
     store.addPmuSample(makeHighPerfSample(1'000'000, 42, 0));
     store.addMigration(makeMigration(2'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(3'000'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(3'000'000, 42, 12));
     store.addMigration(makeMigration(4'000'000, 42, 12, 0));
-    store.addPmuSample(makeHighPerfSample(5'000'000, 42, 0));
+    addSamplesAfterMigration(store, makeHighPerfSample(5'000'000, 42, 0));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
@@ -372,11 +386,11 @@ TEST_CASE("MigrationAnalyzer aggregates by type", "[analysis][MigrationAnalyzer]
 
     store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
     store.addMigration(makeMigration(1'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(1'100'000, 42, 12));
 
     store.addPmuSample(makeLowPerfSample(1'900'000, 43, 12));
     store.addMigration(makeMigration(2'000'000, 43, 12, 0));
-    store.addPmuSample(makeHighPerfSample(2'100'000, 43, 0));
+    addSamplesAfterMigration(store, makeHighPerfSample(2'100'000, 43, 0));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
@@ -399,15 +413,15 @@ TEST_CASE("MigrationAnalyzer aggregates by thread", "[analysis][MigrationAnalyze
 
     store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
     store.addMigration(makeMigration(1'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(1'100'000, 42, 12));
 
     store.addPmuSample(makeHighPerfSample(1'900'000, 42, 0));
     store.addMigration(makeMigration(2'000'000, 42, 0, 13));
-    store.addPmuSample(makeLowPerfSample(2'100'000, 42, 13));
+    addSamplesAfterMigration(store, makeLowPerfSample(2'100'000, 42, 13));
 
     store.addPmuSample(makeLowPerfSample(2'900'000, 43, 12));
     store.addMigration(makeMigration(3'000'000, 43, 12, 0));
-    store.addPmuSample(makeHighPerfSample(3'100'000, 43, 0));
+    addSamplesAfterMigration(store, makeHighPerfSample(3'100'000, 43, 0));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
@@ -539,7 +553,7 @@ TEST_CASE("MigrationAnalyzer thread averages exclude low-confidence impacts",
 
     store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
     store.addMigration(makeMigration(1'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(1'100'000, 42, 12));
 
     // No samples within the max gap, so this impact has zero confidence
     store.addMigration(makeMigration(50'000'000, 42, 0, 12));
@@ -563,15 +577,15 @@ TEST_CASE("MigrationAnalyzer thread cache delta averages over all cross-type mig
 
     store.addPmuSample(makeHighPerfSample(900'000, 42, 0));
     store.addMigration(makeMigration(1'000'000, 42, 0, 12));
-    store.addPmuSample(makeLowPerfSample(1'100'000, 42, 12));
+    addSamplesAfterMigration(store, makeLowPerfSample(1'100'000, 42, 12));
 
     store.addPmuSample(makeHighPerfSample(1'900'000, 42, 0));
     store.addMigration(makeMigration(2'000'000, 42, 0, 13));
-    store.addPmuSample(makeLowPerfSample(2'100'000, 42, 13));
+    addSamplesAfterMigration(store, makeLowPerfSample(2'100'000, 42, 13));
 
     store.addPmuSample(makeLowPerfSample(2'900'000, 42, 12));
     store.addMigration(makeMigration(3'000'000, 42, 12, 0));
-    store.addPmuSample(makeHighPerfSample(3'100'000, 42, 0));
+    addSamplesAfterMigration(store, makeHighPerfSample(3'100'000, 42, 0));
 
     MigrationAnalyzer analyzer(store, topology);
     auto result = analyzer.analyze();
