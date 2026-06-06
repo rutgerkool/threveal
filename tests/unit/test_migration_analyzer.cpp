@@ -620,3 +620,24 @@ TEST_CASE("MigrationAnalyzer skips the interval that contains the migration",
     REQUIRE(impact.cache_miss_delta == Approx(0.1));
     REQUIRE(impact.branch_miss_delta == Approx(0.0001 - 0.000025));
 }
+
+TEST_CASE("MigrationAnalyzer treats a sample at the migration as the end of the interval before",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(4'000'000, 42, 0));
+    store.addPmuSample(makeHighPerfSample(5'000'000, 42, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(6'000'000, 42, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    const auto& impact = result.impacts[0];
+
+    REQUIRE(impact.ipc_delta == Approx(-1.0));
+    REQUIRE(impact.confidence == Approx(1.0));
+}
