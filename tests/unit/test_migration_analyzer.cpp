@@ -598,3 +598,25 @@ TEST_CASE("MigrationAnalyzer thread cache delta averages over all cross-type mig
     REQUIRE(stats.avg_ipc_loss_on_p_to_e == Approx(-1.0));
     REQUIRE(stats.avg_ipc_gain_on_e_to_p == Approx(1.0));
 }
+
+TEST_CASE("MigrationAnalyzer skips the interval that contains the migration",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(4'000'000, 42, 0));
+    store.addMigration(makeMigration(5'000'000, 42, 0, 12));
+    store.addPmuSample(makePmuSample(6'000'000, 42, 12, 1'500'000, 1'000'000, 150, 1000, 75));
+    store.addPmuSample(makeLowPerfSample(7'000'000, 42, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    auto result = analyzer.analyze();
+
+    REQUIRE(result.impacts.size() == 1);
+    const auto& impact = result.impacts[0];
+
+    REQUIRE(impact.ipc_delta == Approx(-1.0));
+    REQUIRE(impact.cache_miss_delta == Approx(0.1));
+    REQUIRE(impact.branch_miss_delta == Approx(0.0001 - 0.000025));
+}
