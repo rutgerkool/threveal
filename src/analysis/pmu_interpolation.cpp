@@ -9,6 +9,7 @@
 
 #include "threveal/core/events.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -81,6 +82,31 @@ auto ratesBetween(const CounterTotals& from, const CounterTotals& to) noexcept -
             ratio(to.llc_misses - from.llc_misses, to.llc_references - from.llc_references),
         .branch_miss_rate = ratio(to.branch_misses - from.branch_misses, instructions),
     };
+}
+
+auto ratesOver(std::span<const core::PmuSample> samples, std::uint64_t start_ns,
+               std::uint64_t end_ns) -> std::optional<WindowRates>
+{
+    if (samples.empty())
+    {
+        return std::nullopt;
+    }
+
+    auto from_ns = std::max(start_ns, samples.front().timestamp_ns);
+    auto to_ns = std::min(end_ns, samples.back().timestamp_ns);
+    if (from_ns >= to_ns)
+    {
+        return std::nullopt;
+    }
+
+    auto from = interpolateTotals(samples, from_ns);
+    auto to = interpolateTotals(samples, to_ns);
+    if (!from || !to)
+    {
+        return std::nullopt;
+    }
+
+    return ratesBetween(*from, *to);
 }
 
 }  // namespace threveal::analysis

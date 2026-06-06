@@ -60,6 +60,18 @@ struct WindowRates
 [[nodiscard]] auto ratesBetween(const CounterTotals& from, const CounterTotals& to) noexcept
     -> WindowRates;
 
+/**
+ *  Computes a thread's rates over a time window.
+ *
+ *  @param      samples   The thread's samples, sorted by timestamp.
+ *  @param      start_ns  Start of the window.
+ *  @param      end_ns    End of the window.
+ *  @return     The rates over the window, or std::nullopt if it does not overlap the
+ *              sampled range.
+ */
+[[nodiscard]] auto ratesOver(std::span<const core::PmuSample> samples, std::uint64_t start_ns,
+                             std::uint64_t end_ns) -> std::optional<WindowRates>;
+
 }  // namespace threveal::analysis
 
 #endif  // THREVEAL_ANALYSIS_PMU_INTERPOLATION_HPP_
