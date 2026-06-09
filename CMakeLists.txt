@@ -107,6 +107,7 @@ add_library(threveal_core STATIC
   src/analysis/migration_analyzer.cpp
   src/analysis/pmu_interpolation.cpp
   src/analysis/recommendation.cpp
+  src/analysis/time_windows.cpp
   src/collection/perf_event.cpp
   src/collection/thread_cpu.cpp
   src/collection/pmu_counter.cpp
