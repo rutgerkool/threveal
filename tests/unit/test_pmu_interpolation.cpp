@@ -17,6 +17,7 @@ using Catch::Approx;
 using threveal::analysis::CounterTotals;
 using threveal::analysis::interpolateTotals;
 using threveal::analysis::ratesBetween;
+using threveal::analysis::ratesOver;
 using threveal::core::PmuSample;
 
 namespace
@@ -38,6 +39,33 @@ auto makeSample(std::uint64_t timestamp_ns, std::uint64_t base) -> PmuSample
         .branch_misses = base * 5,
     };
 }
+
+/**
+ *  Builds a sample with only instructions and cycles, for testing IPC.
+ */
+auto makeIpcSample(std::uint64_t timestamp_ns, std::uint64_t instructions, std::uint64_t cycles)
+    -> PmuSample
+{
+    return PmuSample{
+        .timestamp_ns = timestamp_ns,
+        .tid = 42,
+        .cpu_id = 0,
+        .instructions = instructions,
+        .cycles = cycles,
+        .llc_misses = 0,
+        .llc_references = 0,
+        .branch_misses = 0,
+    };
+}
+
+/**
+ *  An interval with IPC 2.0 followed by an interval with IPC 1.0.
+ */
+const std::vector<PmuSample> kIpcSamples = {
+    makeIpcSample(1'000, 0, 0),
+    makeIpcSample(2'000, 2'000, 1'000),
+    makeIpcSample(3'000, 1'000, 1'000),
+};
 
 const std::vector<PmuSample> kSamples = {
     makeSample(1'000, 100),
@@ -161,4 +189,46 @@ TEST_CASE("ratesBetween guards each denominator independently", "[analysis][pmu_
     REQUIRE(rates.ipc == 0.0);
     REQUIRE(rates.llc_miss_rate == 0.0);
     REQUIRE(rates.branch_miss_rate == Approx(0.01));
+}
+
+TEST_CASE("ratesOver measures a window between samples", "[analysis][pmu_interpolation]")
+{
+    SECTION("exactly one interval")
+    {
+        auto rates = ratesOver(kIpcSamples, 1'000, 2'000);
+        REQUIRE(rates.has_value());
+        REQUIRE(rates->ipc == Approx(2.0));
+    }
+
+    SECTION("half of each interval")
+    {
+        auto rates = ratesOver(kIpcSamples, 1'500, 2'500);
+        REQUIRE(rates.has_value());
+        REQUIRE(rates->ipc == Approx(1.5));
+    }
+}
+
+TEST_CASE("ratesOver clamps the window to the sampled range", "[analysis][pmu_interpolation]")
+{
+    SECTION("window starts before the first sample")
+    {
+        auto rates = ratesOver(kIpcSamples, 0, 2'000);
+        REQUIRE(rates.has_value());
+        REQUIRE(rates->ipc == Approx(2.0));
+    }
+
+    SECTION("window ends after the last sample")
+    {
+        auto rates = ratesOver(kIpcSamples, 2'000, 9'000);
+        REQUIRE(rates.has_value());
+        REQUIRE(rates->ipc == Approx(1.0));
+    }
+}
+
+TEST_CASE("ratesOver returns nullopt without overlap", "[analysis][pmu_interpolation]")
+{
+    REQUIRE_FALSE(ratesOver({}, 0, 1'000).has_value());
+    REQUIRE_FALSE(ratesOver(kIpcSamples, 0, 1'000).has_value());
+    REQUIRE_FALSE(ratesOver(kIpcSamples, 3'000, 4'000).has_value());
+    REQUIRE_FALSE(ratesOver(kIpcSamples, 2'000, 2'000).has_value());
 }
