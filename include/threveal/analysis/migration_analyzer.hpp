@@ -9,6 +9,7 @@
 #define THREVEAL_ANALYSIS_MIGRATION_ANALYZER_HPP_
 
 #include "threveal/analysis/event_store.hpp"
+#include "threveal/analysis/time_windows.hpp"
 #include "threveal/core/events.hpp"
 #include "threveal/core/topology.hpp"
 #include "threveal/core/types.hpp"
@@ -155,6 +156,22 @@ struct ThreadStatistics
 };
 
 /**
+ *  One thread's activity over the recorded time range, window by window.
+ */
+struct ThreadTimeline
+{
+    /**
+     *  Thread ID.
+     */
+    std::uint32_t tid;
+
+    /**
+     *  Consecutive windows covering the recorded time range.
+     */
+    std::vector<ThreadWindow> windows;
+};
+
+/**
  *  Complete analysis results from a profiling session.
  */
 struct AnalysisResult
@@ -183,6 +200,11 @@ struct AnalysisResult
      *  Number of migrations that could be correlated with PMU samples.
      */
     std::uint32_t correlated_migrations;
+
+    /**
+     *  Per-thread timelines over the recorded time range, ordered by thread ID.
+     */
+    std::vector<ThreadTimeline> thread_timelines;
 };
 
 /**
@@ -201,6 +223,11 @@ class MigrationAnalyzer
      *  Minimum confidence threshold for including an impact in aggregations.
      */
     static constexpr double kDefaultMinConfidence = 0.1;
+
+    /**
+     *  Length of each window in the per-thread timelines.
+     */
+    static constexpr std::uint64_t kDefaultWindowNs = 100'000'000;
 
     /**
      *  Constructs an analyzer for the given event store and topology.
@@ -232,6 +259,13 @@ class MigrationAnalyzer
      *                          this value are excluded from averages.
      */
     void setMinConfidence(double threshold) noexcept;
+
+    /**
+     *  Sets the length of each window in the per-thread timelines.
+     *
+     *  @param      window_ns  Window length in nanoseconds.
+     */
+    void setWindowSize(std::uint64_t window_ns) noexcept;
 
   private:
     /**
@@ -277,6 +311,7 @@ class MigrationAnalyzer
     const core::TopologyMap* topology_;
     std::uint64_t max_sample_gap_ns_{kDefaultMaxSampleGapNs};
     double min_confidence_{kDefaultMinConfidence};
+    std::uint64_t window_ns_{kDefaultWindowNs};
 };
 
 }  // namespace threveal::analysis

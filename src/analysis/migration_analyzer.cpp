@@ -8,6 +8,7 @@
 #include "threveal/analysis/migration_analyzer.hpp"
 
 #include "threveal/analysis/event_store.hpp"
+#include "threveal/analysis/time_windows.hpp"
 #include "threveal/core/events.hpp"
 #include "threveal/core/topology.hpp"
 #include "threveal/core/types.hpp"
@@ -17,7 +18,10 @@
 #include <cmath>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <optional>
+#include <ranges>
+#include <set>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -116,6 +120,126 @@ auto firstIntervalAfter(std::span<const core::PmuSample> samples, std::uint64_t 
         return std::nullopt;
     }
     return FollowingInterval{.start_ns = boundary->timestamp_ns, .sample = *std::next(boundary)};
+}
+
+/**
+ *  Migrations grouped per thread, each thread's migrations in time order.
+ */
+using MigrationsByThread = std::unordered_map<std::uint32_t, std::vector<TimedMigration>>;
+
+/**
+ *  Groups time-ordered migration impacts by thread.
+ */
+auto groupMigrationsByThread(const std::vector<MigrationImpact>& impacts) -> MigrationsByThread
+{
+    MigrationsByThread by_thread;
+    for (const auto& impact : impacts)
+    {
+        by_thread[impact.event.tid].push_back(
+            TimedMigration{.timestamp_ns = impact.event.timestamp_ns, .type = impact.type});
+    }
+    return by_thread;
+}
+
+/**
+ *  Returns the migrations of one thread, or an empty span if it has none.
+ */
+auto migrationsOf(const MigrationsByThread& by_thread, std::uint32_t tid)
+    -> std::span<const TimedMigration>
+{
+    auto it = by_thread.find(tid);
+    if (it == by_thread.end())
+    {
+        return {};
+    }
+    return it->second;
+}
+
+/**
+ *  A half-open time range.
+ */
+struct TimeRange
+{
+    std::uint64_t start_ns;
+    std::uint64_t end_ns;
+};
+
+/**
+ *  Returns the time range from the first to the last recorded event, inclusive.
+ */
+auto recordedRange(std::span<const core::MigrationEvent> migrations,
+                   std::span<const core::PmuSample> samples) -> std::optional<TimeRange>
+{
+    if (migrations.empty() && samples.empty())
+    {
+        return std::nullopt;
+    }
+
+    auto first = std::numeric_limits<std::uint64_t>::max();
+    std::uint64_t last = 0;
+    if (!migrations.empty())
+    {
+        first = std::min(first, migrations.front().timestamp_ns);
+        last = std::max(last, migrations.back().timestamp_ns);
+    }
+    if (!samples.empty())
+    {
+        first = std::min(first, samples.front().timestamp_ns);
+        last = std::max(last, samples.back().timestamp_ns);
+    }
+    return TimeRange{.start_ns = first, .end_ns = last + 1};
+}
+
+/**
+ *  Builds a timeline for every thread with migrations or samples, ordered by thread ID.
+ */
+auto buildTimelines(const MigrationsByThread& migrations, const SamplesByThread& samples,
+                    std::optional<TimeRange> range, std::uint64_t window_ns)
+    -> std::vector<ThreadTimeline>
+{
+    if (!range)
+    {
+        return {};
+    }
+
+    std::set<std::uint32_t> tids;
+    for (auto tid : std::views::keys(migrations))
+    {
+        tids.insert(tid);
+    }
+    for (auto tid : std::views::keys(samples))
+    {
+        tids.insert(tid);
+    }
+
+    std::vector<ThreadTimeline> timelines;
+    timelines.reserve(tids.size());
+    for (auto tid : tids)
+    {
+        timelines.push_back(ThreadTimeline{
+            .tid = tid,
+            .windows = buildThreadWindows(samplesOf(samples, tid), migrationsOf(migrations, tid),
+                                          range->start_ns, range->end_ns, window_ns),
+        });
+    }
+    return timelines;
+}
+
+/**
+ *  Counts the impacts that meet the confidence threshold.
+ */
+auto countCorrelated(const std::vector<MigrationImpact>& impacts, double min_confidence)
+    -> std::uint32_t
+{
+    std::uint32_t correlated = 0;
+    for (const auto& impact : impacts)
+    {
+        if (impact.confidence >= min_confidence)
+        {
+            ++correlated;
+        }
+    }
+    return correlated;
 }
 
 /**
@@ -264,6 +388,11 @@ void MigrationAnalyzer::setMinConfidence(double threshold) noexcept
     min_confidence_ = threshold;
 }
 
+void MigrationAnalyzer::setWindowSize(std::uint64_t window_ns) noexcept
+{
+    window_ns_ = window_ns;
+}
+
 auto MigrationAnalyzer::analyze() const -> AnalysisResult
 {
     auto migrations = store_->allMigrations();
@@ -272,22 +401,17 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
     // Compute per-migration performance impact
     std::vector<MigrationImpact> impacts;
     impacts.reserve(migrations.size());
-
-    std::uint32_t correlated = 0;
-
     for (const auto& migration : migrations)
     {
-        auto impact = computeImpact(migration, samplesOf(samples_by_thread, migration.tid));
-        if (impact.confidence >= min_confidence_)
-        {
-            ++correlated;
-        }
-        impacts.push_back(impact);
+        impacts.push_back(computeImpact(migration, samplesOf(samples_by_thread, migration.tid)));
     }
 
-    // Aggregate into per-type and per-thread statistics
+    // Aggregate into per-type and per-thread statistics and timelines
+    auto correlated = countCorrelated(impacts, min_confidence_);
     auto type_stats = aggregateByType(impacts);
     auto thread_stats = aggregateByThread(impacts);
+    auto timelines = buildTimelines(groupMigrationsByThread(impacts), samples_by_thread,
+                                    recordedRange(migrations, store_->allPmuSamples()), window_ns_);
 
     return AnalysisResult{
         .impacts = std::move(impacts),
@@ -295,6 +419,7 @@ auto MigrationAnalyzer::analyze() const -> AnalysisResult
         .thread_stats = std::move(thread_stats),
         .total_migrations = static_cast<std::uint32_t>(migrations.size()),
         .correlated_migrations = correlated,
+        .thread_timelines = std::move(timelines),
     };
 }
 
