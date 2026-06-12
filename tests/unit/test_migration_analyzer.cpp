@@ -641,3 +641,105 @@ TEST_CASE("MigrationAnalyzer treats a sample at the migration as the end of the 
     REQUIRE(impact.ipc_delta == Approx(-1.0));
     REQUIRE(impact.confidence == Approx(1.0));
 }
+
+TEST_CASE("MigrationAnalyzer has no timelines without events", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+    MigrationAnalyzer analyzer(store, topology);
+
+    REQUIRE(analyzer.analyze().thread_timelines.empty());
+}
+
+TEST_CASE("MigrationAnalyzer builds aligned per-thread timelines", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(1'000'000, 42, 0));
+    store.addPmuSample(makeHighPerfSample(2'000'000, 42, 0));
+    store.addMigration(makeMigration(2'500'000, 42, 0, 12));
+    store.addPmuSample(makeLowPerfSample(3'000'000, 42, 12));
+    store.addPmuSample(makeLowPerfSample(4'000'000, 42, 12));
+
+    store.addMigration(makeMigration(3'500'000, 43, 12, 0));
+
+    store.addPmuSample(makeHighPerfSample(1'500'000, 44, 0));
+    store.addPmuSample(makeHighPerfSample(2'500'000, 44, 0));
+
+    MigrationAnalyzer analyzer(store, topology);
+    analyzer.setWindowSize(1'000'000);
+    auto timelines = analyzer.analyze().thread_timelines;
+
+    REQUIRE(timelines.size() == 3);
+    REQUIRE(timelines[0].tid == 42);
+    REQUIRE(timelines[1].tid == 43);
+    REQUIRE(timelines[2].tid == 44);
+
+    SECTION("every timeline covers the recorded range with the same windows")
+    {
+        for (const auto& timeline : timelines)
+        {
+            REQUIRE(timeline.windows.size() == 4);
+            REQUIRE(timeline.windows.front().start_ns == 1'000'000);
+            REQUIRE(timeline.windows.back().end_ns == 4'000'001);
+        }
+    }
+
+    SECTION("windows count the thread's migrations")
+    {
+        REQUIRE(timelines[0].windows[1].p_to_e_migrations == 1);
+        REQUIRE(timelines[1].windows[2].e_to_p_migrations == 1);
+    }
+
+    SECTION("windows measure the thread's rates where it was sampled")
+    {
+        REQUIRE(timelines[0].windows[0].rates->ipc == Approx(2.0));
+        REQUIRE(timelines[0].windows[1].rates->ipc == Approx(1.0));
+        REQUIRE_FALSE(timelines[1].windows[0].rates.has_value());
+        REQUIRE(timelines[2].windows[0].rates->ipc == Approx(2.0));
+        REQUIRE_FALSE(timelines[2].windows[2].rates.has_value());
+    }
+}
+
+TEST_CASE("MigrationAnalyzer uses the configured window size", "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(1'000'000, 42, 0));
+    store.addPmuSample(makeHighPerfSample(5'000'000, 42, 0));
+
+    SECTION("default window covers the whole range")
+    {
+        MigrationAnalyzer analyzer(store, topology);
+        REQUIRE(analyzer.analyze().thread_timelines[0].windows.size() == 1);
+    }
+
+    SECTION("custom window splits the range")
+    {
+        MigrationAnalyzer analyzer(store, topology);
+        analyzer.setWindowSize(1'000'000);
+        REQUIRE(analyzer.analyze().thread_timelines[0].windows.size() == 5);
+    }
+}
+
+TEST_CASE("MigrationAnalyzer timelines extend to a migration after the last sample",
+          "[analysis][MigrationAnalyzer]")
+{
+    EventStore store;
+    auto topology = makeTestTopology();
+
+    store.addPmuSample(makeHighPerfSample(1'000'000, 42, 0));
+    store.addPmuSample(makeHighPerfSample(2'000'000, 42, 0));
+    store.addMigration(makeMigration(3'500'000, 42, 0, 12));
+
+    MigrationAnalyzer analyzer(store, topology);
+    analyzer.setWindowSize(1'000'000);
+    auto result = analyzer.analyze();
+    const auto& windows = result.thread_timelines[0].windows;
+
+    REQUIRE(windows.size() == 3);
+    REQUIRE(windows.back().end_ns == 3'500'001);
+    REQUIRE(windows.back().p_to_e_migrations == 1);
+}
