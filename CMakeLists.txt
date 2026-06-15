@@ -95,6 +95,7 @@ endif()
 
 # Find dependencies
 find_package(fmt CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -108,13 +109,14 @@ add_library(threveal_core STATIC
   src/analysis/pmu_interpolation.cpp
   src/analysis/recommendation.cpp
   src/analysis/time_windows.cpp
+  src/storage/recording.cpp
   src/collection/perf_event.cpp
   src/collection/thread_cpu.cpp
   src/collection/pmu_counter.cpp
   src/collection/pmu_group.cpp
   src/collection/pmu_sampler.cpp
 )
-target_link_libraries(threveal_core PUBLIC fmt::fmt)
+target_link_libraries(threveal_core PUBLIC fmt::fmt PRIVATE nlohmann_json::nlohmann_json)
 
 # eBPF-dependent library (separate to allow building without BPF support)
 if(THREVEAL_ENABLE_BPF)
