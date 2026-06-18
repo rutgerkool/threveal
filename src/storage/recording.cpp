@@ -15,11 +15,16 @@
 #include <algorithm>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
+#include <fstream>
+#include <ios>
+#include <iterator>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace threveal::storage
@@ -199,6 +204,63 @@ auto parseRecording(std::string_view text) -> std::expected<Recording, Recording
     catch (const std::out_of_range&)
     {
         return std::unexpected(RecordingError::kMalformed);
+    }
+}
+
+auto saveRecording(const Recording& recording, const std::filesystem::path& path)
+    -> std::expected<void, RecordingError>
+{
+    auto temporary = path;
+    temporary += ".tmp";
+
+    {
+        std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
+        file << serializeRecording(recording);
+        file.close();
+        if (!file)
+        {
+            std::error_code ignored;
+            std::filesystem::remove(temporary, ignored);
+            return std::unexpected(RecordingError::kCannotWrite);
+        }
+    }
+
+    std::error_code error;
+    std::filesystem::rename(temporary, path, error);
+    if (error)
+    {
+        std::filesystem::remove(temporary, error);
+        return std::unexpected(RecordingError::kCannotWrite);
+    }
+    return {};
+}
+
+auto loadRecording(const std::filesystem::path& path) -> std::expected<Recording, RecordingError>
+{
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(path, error))
+    {
+        return std::unexpected(RecordingError::kCannotRead);
+    }
+
+    std::ifstream file(path, std::ios::binary);
+    if (!file)
+    {
+        return std::unexpected(RecordingError::kCannotRead);
+    }
+
+    try
+    {
+        std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+        if (file.bad())
+        {
+            return std::unexpected(RecordingError::kCannotRead);
+        }
+        return parseRecording(text);
+    }
+    catch (const std::ios_base::failure&)
+    {
+        return std::unexpected(RecordingError::kCannotRead);
     }
 }
 

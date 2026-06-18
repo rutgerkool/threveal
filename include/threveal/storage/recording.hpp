@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <string>
 #include <string_view>
 
@@ -38,6 +39,16 @@ enum class RecordingError : std::uint8_t
      *  The recording was written in a format or version this build cannot read.
      */
     kUnsupportedVersion = 1,
+
+    /**
+     *  The recording file could not be opened or read.
+     */
+    kCannotRead = 2,
+
+    /**
+     *  The recording file could not be written.
+     */
+    kCannotWrite = 3,
 };
 
 /**
@@ -76,6 +87,25 @@ struct Recording
  *  @return     The recording, or the reason it cannot be read.
  */
 [[nodiscard]] auto parseRecording(std::string_view text)
+    -> std::expected<Recording, RecordingError>;
+
+/**
+ *  Writes a recording to a file, replacing any existing file.
+ *
+ *  @param      recording  The recording to write.
+ *  @param      path       The file to write.
+ *  @return     Nothing on success, or kCannotWrite.
+ */
+[[nodiscard]] auto saveRecording(const Recording& recording, const std::filesystem::path& path)
+    -> std::expected<void, RecordingError>;
+
+/**
+ *  Reads a recording from a file.
+ *
+ *  @param      path  The file to read.
+ *  @return     The recording, or the reason it cannot be read.
+ */
+[[nodiscard]] auto loadRecording(const std::filesystem::path& path)
     -> std::expected<Recording, RecordingError>;
 
 }  // namespace threveal::storage
