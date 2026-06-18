@@ -13,17 +13,23 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <unistd.h>
 #include <vector>
 
 using threveal::core::CpuId;
 using threveal::core::MigrationEvent;
 using threveal::core::PmuSample;
 using threveal::core::TopologyMap;
+using threveal::storage::loadRecording;
 using threveal::storage::parseRecording;
 using threveal::storage::Recording;
 using threveal::storage::RecordingError;
+using threveal::storage::saveRecording;
 using threveal::storage::serializeRecording;
 
 namespace
@@ -72,6 +78,40 @@ auto recordingJson(std::string_view migrations, std::string_view samples) -> std
                        R"("topology":{"p_cores":[0],"e_cores":[12]},"migrations":)") +
            std::string(migrations) + R"(,"samples":)" + std::string(samples) + "}";
 }
+
+/**
+ *  A temporary directory that is removed with everything in it when it goes out of scope.
+ */
+class ScopedTempDir
+{
+  public:
+    ScopedTempDir()
+        : path_(std::filesystem::temp_directory_path() /
+                ("threveal-test-" + std::to_string(getpid())))
+    {
+        std::filesystem::remove_all(path_);
+        std::filesystem::create_directories(path_);
+    }
+
+    ScopedTempDir(const ScopedTempDir&) = delete;
+    ScopedTempDir(ScopedTempDir&&) = delete;
+    auto operator=(const ScopedTempDir&) -> ScopedTempDir& = delete;
+    auto operator=(ScopedTempDir&&) -> ScopedTempDir& = delete;
+
+    ~ScopedTempDir()
+    {
+        std::error_code ignored;
+        std::filesystem::remove_all(path_, ignored);
+    }
+
+    [[nodiscard]] auto path() const -> const std::filesystem::path&
+    {
+        return path_;
+    }
+
+  private:
+    std::filesystem::path path_;
+};
 
 }  // namespace
 
@@ -192,5 +232,91 @@ TEST_CASE("Recording rejects other formats and versions", "[storage][recording]"
         auto other = document;
         other.replace(other.find("threveal-recording"), 18, "something-else");
         REQUIRE(parseRecording(other).error() == RecordingError::kUnsupportedVersion);
+    }
+}
+
+TEST_CASE("Recording files round-trip through disk", "[storage][recording]")
+{
+    ScopedTempDir dir;
+    auto path = dir.path() / "session.json";
+
+    REQUIRE(saveRecording(makeRecording(), path).has_value());
+
+    auto loaded = loadRecording(path);
+    REQUIRE(loaded.has_value());
+    REQUIRE(loaded->duration_ns == 5'000'000'000);
+    REQUIRE(loaded->events.migrationCount() == 1);
+    REQUIRE(loaded->events.pmuSampleCount() == 1);
+}
+
+TEST_CASE("Recording files replace an existing file", "[storage][recording]")
+{
+    ScopedTempDir dir;
+    auto path = dir.path() / "session.json";
+
+    auto recording = makeRecording();
+    REQUIRE(saveRecording(recording, path).has_value());
+    recording.duration_ns = 42;
+    REQUIRE(saveRecording(recording, path).has_value());
+
+    REQUIRE(loadRecording(path)->duration_ns == 42);
+    REQUIRE_FALSE(std::filesystem::exists(dir.path() / "session.json.tmp"));
+}
+
+TEST_CASE("Recording files replace a temporary file left by an interrupted save",
+          "[storage][recording]")
+{
+    ScopedTempDir dir;
+    auto path = dir.path() / "session.json";
+    std::ofstream(dir.path() / "session.json.tmp") << "partial recording";
+
+    REQUIRE(saveRecording(makeRecording(), path).has_value());
+
+    REQUIRE(loadRecording(path).has_value());
+}
+
+TEST_CASE("Recording files report why they cannot be read or written", "[storage][recording]")
+{
+    ScopedTempDir dir;
+
+    SECTION("missing file")
+    {
+        REQUIRE(loadRecording(dir.path() / "missing.json").error() == RecordingError::kCannotRead);
+    }
+
+    SECTION("directory instead of a file")
+    {
+        REQUIRE(loadRecording(dir.path()).error() == RecordingError::kCannotRead);
+    }
+
+    SECTION("device instead of a file")
+    {
+        REQUIRE(loadRecording("/dev/null").error() == RecordingError::kCannotRead);
+    }
+
+    SECTION("file without read permission")
+    {
+        if (geteuid() == 0)
+        {
+            SKIP("root ignores file permissions");
+        }
+
+        auto path = dir.path() / "private.json";
+        REQUIRE(saveRecording(makeRecording(), path).has_value());
+        std::filesystem::permissions(path, std::filesystem::perms::none);
+        REQUIRE(loadRecording(path).error() == RecordingError::kCannotRead);
+    }
+
+    SECTION("file that is not a recording")
+    {
+        auto path = dir.path() / "garbage.json";
+        std::ofstream(path) << "not a recording";
+        REQUIRE(loadRecording(path).error() == RecordingError::kMalformed);
+    }
+
+    SECTION("directory that does not exist")
+    {
+        auto path = dir.path() / "missing" / "session.json";
+        REQUIRE(saveRecording(makeRecording(), path).error() == RecordingError::kCannotWrite);
     }
 }
