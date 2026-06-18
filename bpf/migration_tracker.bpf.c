@@ -60,40 +60,53 @@ struct
 #define CONFIG_TARGET_PID 0
 
 /**
- *  Tracepoint handler for sched:sched_migrate_task.
+ *  Layout of task_struct before Linux 5.16, which kept the CPU in task_struct itself.
+ */
+struct task_struct___pre_5_16
+{
+    unsigned int cpu;
+} __attribute__((preserve_access_index));
+
+/**
+ *  Returns the CPU a task is currently assigned to.
  *
- *  This tracepoint fires when the scheduler moves a task from one CPU to
- *  another. The tracepoint arguments provide:
- *  - p: pointer to the task_struct being migrated
- *  - dest_cpu: the destination CPU ID
- *  - orig_cpu is available in the tracepoint context
+ *  @param      task  The task to inspect
+ *  @return     The task's CPU
+ */
+static __always_inline __u32 task_cpu(const struct task_struct *task)
+{
+    if (bpf_core_field_exists(task->thread_info.cpu))
+    {
+        return BPF_CORE_READ(task, thread_info.cpu);
+    }
+    return BPF_CORE_READ((struct task_struct___pre_5_16 *)task, cpu);
+}
+
+/**
+ *  BTF tracepoint handler for sched:sched_migrate_task.
  *
- *  @param      ctx  Tracepoint context containing event arguments
+ *  The tracepoint fires wherever the scheduler moves a task, which is often not
+ *  in the context of the moved task itself: a waker migrates the task it wakes,
+ *  and load balancing runs in kernel threads. All identity fields are therefore
+ *  read from the migrated task, never from the current task.
+ *
+ *  @param      task      The task being migrated
+ *  @param      dest_cpu  The CPU the task is moved to
  *  @return     0 on success (required by BPF verifier)
  */
-SEC("tp/sched/sched_migrate_task")
-int handle_sched_migrate_task(struct trace_event_raw_sched_migrate_task *ctx)
+SEC("tp_btf/sched_migrate_task")
+int BPF_PROG(handle_sched_migrate_task, struct task_struct *task, int dest_cpu)
 {
     struct migration_event *event;
     __u32 key = CONFIG_TARGET_PID;
     __u32 *target_pid;
-    __u32 pid;
-    __u32 tid;
-
-    /* Get current process and thread IDs */
-    __u64 pid_tgid = bpf_get_current_pid_tgid();
-    pid = pid_tgid >> 32;        /* Upper 32 bits: TGID (process ID) */
-    tid = pid_tgid & 0xFFFFFFFF; /* Lower 32 bits: PID (thread ID) */
+    __u32 pid = BPF_CORE_READ(task, tgid);
 
     /* Check if we should filter by PID */
     target_pid = bpf_map_lookup_elem(&migration_config, &key);
-    if (target_pid && *target_pid != 0)
+    if (target_pid && *target_pid != 0 && pid != *target_pid)
     {
-        /* Filter enabled: only capture events for target process */
-        if (pid != *target_pid)
-        {
-            return 0;
-        }
+        return 0;
     }
 
     /* Reserve space in ring buffer for the event */
@@ -104,22 +117,13 @@ int handle_sched_migrate_task(struct trace_event_raw_sched_migrate_task *ctx)
         return 0;
     }
 
-    /* Populate event fields */
     event->timestamp_ns = bpf_ktime_get_ns();
     event->pid = pid;
-    event->tid = tid;
+    event->tid = BPF_CORE_READ(task, pid);
+    event->src_cpu = task_cpu(task);
+    event->dst_cpu = dest_cpu;
+    BPF_CORE_READ_STR_INTO(&event->comm, task, comm);
 
-    /*
-     * Read CPU IDs from tracepoint context.
-     * The tracepoint structure provides orig_cpu and dest_cpu fields.
-     */
-    event->src_cpu = ctx->orig_cpu;
-    event->dst_cpu = ctx->dest_cpu;
-
-    /* Read command name (process name, max 16 chars) */
-    bpf_get_current_comm(&event->comm, sizeof(event->comm));
-
-    /* Submit event to userspace */
     bpf_ringbuf_submit(event, 0);
 
     return 0;
