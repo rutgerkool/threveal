@@ -11,11 +11,16 @@
 #include "threveal/collection/migration_tracker.hpp"
 #include "threveal/core/events.hpp"
 
+#include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+#include <sched.h>
+#include <sys/types.h>
+#include <thread>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -275,4 +280,92 @@ TEST_CASE("MigrationTracker delivers migrations of the target process",
 
     REQUIRE(has_own_migration());
     REQUIRE(tracker->eventCount() == collector.count());
+}
+
+TEST_CASE("MigrationTracker attributes a wakeup migration to the woken thread",
+          "[collection][MigrationTracker]")
+{
+    if (!hasEbpfPrivileges())
+    {
+        SKIP("eBPF operations require root privileges");
+    }
+    if (sysconf(_SC_NPROCESSORS_ONLN) < 2)
+    {
+        SKIP("Requires at least two CPUs");
+    }
+
+    // Pinned before tracking starts, so this thread's own move to CPU 0 is not recorded
+    ScopedCpuPin waker_pin(0);
+    REQUIRE(waker_pin.pinned());
+
+    EventCollector collector;
+    auto tracker = MigrationTracker::create(
+        [&collector](const MigrationEvent& event)
+        {
+            collector.addEvent(event);
+        });
+    REQUIRE(tracker.has_value());
+    REQUIRE(tracker->setTargetPid(getpid()).has_value());
+    REQUIRE(tracker->start().has_value());
+
+    std::mutex mutex;
+    std::condition_variable wakeup;
+    bool woken = false;
+    std::atomic<pid_t> sleeper_tid{0};
+
+    std::jthread sleeper(
+        [&]
+        {
+            ScopedCpuPin sleeper_pin(0);
+            sleeper_tid = gettid();
+            std::unique_lock lock(mutex);
+            wakeup.wait(lock,
+                        [&]
+                        {
+                            return woken;
+                        });
+        });
+
+    while (sleeper_tid == 0)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // The sleeper is asleep, so it only moves to CPU 1 when this thread wakes it
+    cpu_set_t cpu_one;
+    CPU_ZERO(&cpu_one);
+    CPU_SET(1, &cpu_one);
+    REQUIRE(sched_setaffinity(sleeper_tid, sizeof(cpu_one), &cpu_one) == 0);
+
+    {
+        std::lock_guard lock(mutex);
+        woken = true;
+    }
+    wakeup.notify_one();
+    sleeper.join();
+
+    auto has_sleeper_event = [&]
+    {
+        for (const auto& event : collector.events())
+        {
+            if (event.tid == static_cast<std::uint32_t>(sleeper_tid.load()) && event.dst_cpu == 1)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (!has_sleeper_event() && std::chrono::steady_clock::now() < deadline)
+    {
+        REQUIRE(tracker->poll(std::chrono::milliseconds(10)) >= 0);
+    }
+
+    REQUIRE(has_sleeper_event());
+    for (const auto& event : collector.events())
+    {
+        REQUIRE(event.tid != static_cast<std::uint32_t>(gettid()));
+    }
 }
