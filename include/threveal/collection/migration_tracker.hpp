@@ -107,8 +107,17 @@ class MigrationTracker
     [[nodiscard]] auto eventCount() const noexcept -> std::uint64_t;
 
   private:
-    MigrationTracker(EbpfLoader loader, RingBufferPtr ring_buf,
-                     MigrationCallback callback) noexcept;
+    /**
+     *  State the ring buffer delivers events to.
+     */
+    struct Delivery
+    {
+        MigrationCallback callback;
+        std::atomic<std::uint64_t> event_count{0};
+    };
+
+    MigrationTracker(EbpfLoader loader, std::unique_ptr<Delivery> delivery,
+                     RingBufferPtr ring_buf) noexcept;
 
     /**
      *  Ring buffer callback invoked by libbpf.
@@ -116,9 +125,8 @@ class MigrationTracker
     static auto ringBufferCallback(void* ctx, void* data, std::size_t size) -> int;
 
     EbpfLoader loader_;
+    std::unique_ptr<Delivery> delivery_;
     RingBufferPtr ring_buf_;
-    MigrationCallback callback_;
-    std::atomic<std::uint64_t> event_count_{0};
     bool running_{false};
 };
 

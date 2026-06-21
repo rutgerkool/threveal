@@ -17,6 +17,7 @@
 #include <cstring>
 #include <expected>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -31,9 +32,9 @@ void RingBufferDeleter::operator()(ring_buffer* rb) const noexcept
     ring_buffer__free(rb);
 }
 
-MigrationTracker::MigrationTracker(EbpfLoader loader, RingBufferPtr ring_buf,
-                                   MigrationCallback callback) noexcept
-    : loader_(std::move(loader)), ring_buf_(std::move(ring_buf)), callback_(std::move(callback))
+MigrationTracker::MigrationTracker(EbpfLoader loader, std::unique_ptr<Delivery> delivery,
+                                   RingBufferPtr ring_buf) noexcept
+    : loader_(std::move(loader)), delivery_(std::move(delivery)), ring_buf_(std::move(ring_buf))
 {
 }
 
@@ -47,9 +48,8 @@ MigrationTracker::~MigrationTracker()
 
 MigrationTracker::MigrationTracker(MigrationTracker&& other) noexcept
     : loader_(std::move(other.loader_)),
+      delivery_(std::move(other.delivery_)),
       ring_buf_(std::move(other.ring_buf_)),
-      callback_(std::move(other.callback_)),
-      event_count_(other.event_count_.load()),
       running_(std::exchange(other.running_, false))
 {
 }
@@ -66,10 +66,10 @@ auto MigrationTracker::operator=(MigrationTracker&& other) noexcept -> Migration
         stop();
     }
 
-    loader_ = std::move(other.loader_);
+    // Release the ring buffer before the delivery state it points to
     ring_buf_ = std::move(other.ring_buf_);
-    callback_ = std::move(other.callback_);
-    event_count_ = other.event_count_.load();
+    delivery_ = std::move(other.delivery_);
+    loader_ = std::move(other.loader_);
     running_ = std::exchange(other.running_, false);
 
     return *this;
@@ -97,13 +97,16 @@ auto MigrationTracker::create(MigrationCallback callback)
         return std::unexpected(EbpfError::kMapAccessFailed);
     }
 
-    RingBufferPtr ring_buf{ring_buffer__new(ring_fd, ringBufferCallback, nullptr, nullptr)};
+    auto delivery = std::make_unique<Delivery>();
+    delivery->callback = std::move(callback);
+
+    RingBufferPtr ring_buf{ring_buffer__new(ring_fd, ringBufferCallback, delivery.get(), nullptr)};
     if (!ring_buf)
     {
         return std::unexpected(EbpfError::kMapAccessFailed);
     }
 
-    return MigrationTracker{std::move(*loader), std::move(ring_buf), std::move(callback)};
+    return MigrationTracker{std::move(*loader), std::move(delivery), std::move(ring_buf)};
 }
 
 auto MigrationTracker::start() -> std::expected<void, EbpfError>
@@ -159,7 +162,7 @@ auto MigrationTracker::isRunning() const noexcept -> bool
 
 auto MigrationTracker::eventCount() const noexcept -> std::uint64_t
 {
-    return event_count_.load(std::memory_order_relaxed);
+    return delivery_ ? delivery_->event_count.load(std::memory_order_relaxed) : 0;
 }
 
 auto MigrationTracker::ringBufferCallback(void* ctx, void* data, std::size_t size) -> int
@@ -169,8 +172,8 @@ auto MigrationTracker::ringBufferCallback(void* ctx, void* data, std::size_t siz
         return 0;
     }
 
-    auto* tracker = static_cast<MigrationTracker*>(ctx);
-    if (tracker == nullptr || !tracker->callback_)
+    auto* delivery = static_cast<Delivery*>(ctx);
+    if (delivery == nullptr || !delivery->callback)
     {
         return 0;
     }
@@ -188,8 +191,8 @@ auto MigrationTracker::ringBufferCallback(void* ctx, void* data, std::size_t siz
     std::memcpy(event.comm.data(), raw_event->comm,
                 std::min(sizeof(event.comm), sizeof(raw_event->comm)));
 
-    tracker->callback_(event);
-    tracker->event_count_.fetch_add(1, std::memory_order_relaxed);
+    delivery->callback(event);
+    delivery->event_count.fetch_add(1, std::memory_order_relaxed);
 
     return 0;
 }
