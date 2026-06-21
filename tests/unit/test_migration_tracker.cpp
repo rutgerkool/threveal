@@ -14,15 +14,19 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <mutex>
 #include <unistd.h>
 #include <utility>
 #include <vector>
 
+#include "pmu_test_support.hpp"
+
 using threveal::collection::EbpfError;
 using threveal::collection::MigrationCallback;
 using threveal::collection::MigrationTracker;
 using threveal::core::MigrationEvent;
+using threveal::test::ScopedCpuPin;
 
 namespace
 {
@@ -219,4 +223,56 @@ TEST_CASE("MigrationTracker poll returns without error", "[collection][Migration
     REQUIRE(result >= 0);
 
     tracker->stop();
+}
+
+TEST_CASE("MigrationTracker delivers migrations of the target process",
+          "[collection][MigrationTracker]")
+{
+    if (!hasEbpfPrivileges())
+    {
+        SKIP("eBPF operations require root privileges");
+    }
+    if (sysconf(_SC_NPROCESSORS_ONLN) < 2)
+    {
+        SKIP("Requires at least two CPUs");
+    }
+
+    ScopedCpuPin start_pin(0);
+    REQUIRE(start_pin.pinned());
+
+    EventCollector collector;
+    auto tracker = MigrationTracker::create(
+        [&collector](const MigrationEvent& event)
+        {
+            collector.addEvent(event);
+        });
+    REQUIRE(tracker.has_value());
+    REQUIRE(tracker->setTargetPid(getpid()).has_value());
+    REQUIRE(tracker->start().has_value());
+
+    {
+        ScopedCpuPin move_pin(1);
+        REQUIRE(move_pin.pinned());
+    }
+
+    auto has_own_migration = [&]
+    {
+        for (const auto& event : collector.events())
+        {
+            if (event.tid == static_cast<std::uint32_t>(gettid()) && event.dst_cpu == 1)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (!has_own_migration() && std::chrono::steady_clock::now() < deadline)
+    {
+        REQUIRE(tracker->poll(std::chrono::milliseconds(10)) >= 0);
+    }
+
+    REQUIRE(has_own_migration());
+    REQUIRE(tracker->eventCount() == collector.count());
 }
