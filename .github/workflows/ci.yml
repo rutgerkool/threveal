@@ -115,6 +115,7 @@ jobs:
             build/test_pmu_sampler
             build/test_perf_event
             build/test_thread_cpu
+            build/test_thread_discovery
             build/test_migration_analyzer
             build/test_pmu_interpolation
             build/test_time_windows
@@ -165,6 +166,7 @@ jobs:
           chmod +x build/test_pmu_sampler
           chmod +x build/test_perf_event
           chmod +x build/test_thread_cpu
+          chmod +x build/test_thread_discovery
           chmod +x build/test_migration_analyzer
           chmod +x build/test_pmu_interpolation
           chmod +x build/test_time_windows
@@ -184,6 +186,7 @@ jobs:
           ./build/test_pmu_sampler
           ./build/test_perf_event
           ./build/test_thread_cpu
+          ./build/test_thread_discovery
           ./build/test_migration_analyzer
           ./build/test_pmu_interpolation
           ./build/test_time_windows
