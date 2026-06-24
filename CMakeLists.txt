@@ -112,6 +112,7 @@ add_library(threveal_core STATIC
   src/storage/recording.cpp
   src/collection/perf_event.cpp
   src/collection/thread_cpu.cpp
+  src/collection/thread_discovery.cpp
   src/collection/pmu_counter.cpp
   src/collection/pmu_group.cpp
   src/collection/pmu_sampler.cpp
